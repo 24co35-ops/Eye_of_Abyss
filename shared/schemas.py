@@ -25,9 +25,9 @@ class EvidenceObject(BaseModel):
     # Identity
     evidence_id: UUID = Field(default_factory=uuid4)
     case_id: UUID
-    module_id: Literal["voiceguard", "shadowtrace", "chaineye"]
+    module_id: str = Field(..., description="Module identifier (voiceguard, shadowtrace, chaineye, or custom plugin)")
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    created_by: str  # Officer ID
+    created_by: str = "SYSTEM"  # Officer ID or service
 
     # Verdict
     verdict: str
@@ -86,7 +86,7 @@ class CaseFile(BaseModel):
 
 class ModuleEvidence(BaseModel):
     """Inter-service contract: what each module posts to Case Engine."""
-    module_id: Literal["voiceguard", "shadowtrace", "chaineye"]
+    module_id: str = Field(..., description="Module identifier (voiceguard, shadowtrace, chaineye, or custom plugin)")
     case_id: UUID
     evidence_id: UUID = Field(default_factory=uuid4)
     confidence: float        # 0.0 – 1.0
@@ -101,7 +101,7 @@ class ModuleEvidence(BaseModel):
 class CreateCaseRequest(BaseModel):
     complainant_type: str
     reported_loss: Optional[str] = None
-    modules_assigned: list[Literal["voiceguard", "shadowtrace", "chaineye"]]
+    modules_assigned: list[str] = Field(default_factory=list)
     notes: str = ""
 
 

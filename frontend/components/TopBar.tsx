@@ -4,12 +4,12 @@ import React from "react";
 import { Bell, PanelRight, Shield, Activity, Search } from "lucide-react";
 
 interface TopBarProps {
-  onToggleContext: () => void;
-  isContextOpen: boolean;
+  onToggleContext?: () => void;
+  isContextOpen?: boolean;
   activeCaseId?: string | null;
 }
 
-export function TopBar({ onToggleContext, isContextOpen, activeCaseId }: TopBarProps) {
+export function TopBar({ onToggleContext, isContextOpen = false, activeCaseId }: TopBarProps) {
   return (
     <header className="h-[48px] min-h-[48px] bg-void border-b border-mist px-4 flex items-center justify-between z-20 select-none">
       {/* Left: Brand Wordmark */}

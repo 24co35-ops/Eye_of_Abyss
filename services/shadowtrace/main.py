@@ -64,8 +64,16 @@ from corpus import (
     load_synthetic_corpus,
 )
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+try:
+    from shared.logging_config import setup_logger
+    from shared.middleware import SecurityHeadersMiddleware, RateLimitMiddleware, RequestLoggingMiddleware
+    logger = setup_logger("shadowtrace")
+except Exception:
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("shadowtrace")
+    SecurityHeadersMiddleware = None
+    RateLimitMiddleware = None
+    RequestLoggingMiddleware = None
 
 
 # ── Lifespan Context Manager ──────────────────────────────────────────────────
@@ -88,9 +96,14 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+if SecurityHeadersMiddleware:
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(RequestLoggingMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -99,6 +112,18 @@ app.add_middleware(
 # Auth — JWT required on analysis endpoints
 from auth import Role, TokenPayload, get_current_user, require_role  # noqa: E402
 CurrentUser = Annotated[TokenPayload, Depends(get_current_user)]
+
+
+@app.get("/ready", tags=["ops"])
+def ready():
+    """Readiness probe checking stylometry corpus and graph engine."""
+    profiles = get_all_profiles()
+    return {
+        "status": "ready",
+        "service": "shadowtrace",
+        "indexed_actors": len(profiles),
+        "stylometry_engine": "online",
+    }
 
 
 # ── Request / Response Schemas ────────────────────────────────────────────────

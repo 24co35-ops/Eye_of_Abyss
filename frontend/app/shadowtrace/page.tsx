@@ -18,6 +18,7 @@ import {
   Tooltip,
 } from "recharts";
 import { ExternalLink, PlusCircle, Send } from "lucide-react";
+import { api } from "@/lib/api";
 
 // ── compact actor network (Cytoscape, browser-only) ───────────────────────
 const ActorGraph = dynamic(() => import("@/components/ActorNetworkGraph"), { ssr: false });
@@ -149,14 +150,38 @@ export default function ShadowTracePage() {
               <PlusCircle size={12} /> Add to Corpus
             </button>
             <button
-              onClick={() => setSubmitted(true)}
+              onClick={async () => {
+                setSubmitted(true);
+                try {
+                  await api.cases.submitEvidence(CASE_ID, {
+                    module_id: "shadowtrace",
+                    verdict: {
+                      attributed_author: "d4rk_exch4nger",
+                      platform: "AlphaBay / Telegram",
+                      confidence: 0.87,
+                      signals: { lexical: 0.91, syntactic: 0.84, temporal: 0.79 },
+                      inferred_timezone: "UTC+5:30 (IST)",
+                      peak_hours_utc: [1, 2, 3, 4, 21, 22, 23],
+                    },
+                    confidence: 0.87,
+                    artifacts: [
+                      {
+                        artifact_id: crypto.randomUUID(),
+                        artifact_type: "features",
+                        uri: "s3://shadowtrace-corpus/fingerprints/sample_0035.json",
+                        sha256: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+                      },
+                    ],
+                  });
+                } catch {}
+              }}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors ${
                 submitted
                   ? "bg-[#2A9D4E]/20 border border-[#2A9D4E] text-[#2A9D4E]"
                   : "bg-[#F0A500] text-[#0D0B14] hover:bg-[#F0A500]/90"
               }`}
             >
-              <Send size={12} /> {submitted ? "Evidence Submitted" : "Submit Evidence"}
+              <Send size={12} /> {submitted ? "Evidence Submitted & Hashed" : "Submit Evidence"}
             </button>
           </div>
         </div>

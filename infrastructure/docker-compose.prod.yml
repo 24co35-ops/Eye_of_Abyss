@@ -1,0 +1,202 @@
+version: "3.9"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Eye of Abyss — Production Deployment Configuration
+# ══════════════════════════════════════════════════════════════════════════════
+
+services:
+  # ── Databases & Persistence ──────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-eyeofabyss}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-eyeofabyss}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-eyeofabyss}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
+
+  neo4j:
+    image: neo4j:5.19.0-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+      NEO4J_PLUGINS: '["apoc"]'
+    volumes:
+      - neo4j_prod_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
+
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD:-}"
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+    volumes:
+      - minio_prod_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Application Services ─────────────────────────────────────────────────────
+  case-engine:
+    build:
+      context: ../services/case-engine
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-eyeofabyss}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eyeofabyss}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      BLOCKCHAIN_NETWORK: ${BLOCKCHAIN_NETWORK:-polygon}
+      POLYGON_RPC_URL: ${POLYGON_RPC_URL:-}
+      PRIVATE_KEY: ${PRIVATE_KEY:-}
+      EVIDENCE_REGISTRY_ADDRESS: ${EVIDENCE_REGISTRY_ADDRESS:-}
+      PINATA_API_KEY: ${PINATA_API_KEY:-}
+      PINATA_SECRET_KEY: ${PINATA_SECRET_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      PYTHONPATH: /shared:/app
+    volumes:
+      - ../shared:/shared:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1024M
+
+  voiceguard:
+    build:
+      context: ../services/voiceguard
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      PYTHONPATH: /shared:/app
+    volumes:
+      - ../shared:/shared:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
+
+  chaineye:
+    build:
+      context: ../services/chaineye
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY:-}
+      BLOCKSTREAM_API_URL: ${BLOCKSTREAM_API_URL:-https://blockstream.info/api}
+      PYTHONPATH: /shared:/app
+    volumes:
+      - ../shared:/shared:ro
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  shadowtrace:
+    build:
+      context: ../services/shadowtrace
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      PYTHONPATH: /shared:/app
+    volumes:
+      - ../shared:/shared:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Next.js Frontend ─────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ../frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_CASE_ENGINE_URL: http://localhost:8000
+      NEXT_PUBLIC_VOICEGUARD_URL: http://localhost:8001
+      NEXT_PUBLIC_CHAINEYE_URL: http://localhost:8002
+      NEXT_PUBLIC_SHADOWTRACE_URL: http://localhost:8003
+    ports:
+      - "3000:3000"
+    depends_on:
+      case-engine:
+        condition: service_healthy
+
+volumes:
+  postgres_prod_data:
+  neo4j_prod_data:
+  redis_prod_data:
+  minio_prod_data:

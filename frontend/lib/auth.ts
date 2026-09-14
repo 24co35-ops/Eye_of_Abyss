@@ -12,6 +12,8 @@ export function getToken(): string | null {
   return sessionStorage.getItem(KEY);
 }
 
+export const getStoredToken = getToken;
+
 export function setToken(token: string): void {
   sessionStorage.setItem(KEY, token);
 }

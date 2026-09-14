@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { login } from "@/lib/auth";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const from = params.get("from") ?? "/";
@@ -29,15 +29,16 @@ export default function LoginPage() {
   }
 
   async function handleWallet() {
-    if (!window.ethereum) {
+    const ethereum = typeof window !== "undefined" ? (window as any).ethereum : undefined;
+    if (!ethereum) {
       setError("MetaMask not installed");
       return;
     }
     setLoading(true);
     try {
-      const [address] = await window.ethereum.request({ method: "eth_requestAccounts" });
+      const [address] = await ethereum.request({ method: "eth_requestAccounts" });
       const message = `Eye of Abyss login: ${Date.now()}`;
-      const signature = await window.ethereum.request({
+      const signature = await ethereum.request({
         method: "personal_sign",
         params: [message, address],
       });
@@ -150,5 +151,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-abyss" />}>
+      <LoginForm />
+    </Suspense>
   );
 }

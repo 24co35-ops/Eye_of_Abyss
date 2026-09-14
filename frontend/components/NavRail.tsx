@@ -88,8 +88,16 @@ export function NavRail({ activeItem, onSelect }: NavRailProps) {
       {/* Bottom Settings & Status */}
       <div className="flex flex-col items-center gap-2">
         <button
+          onClick={() => {
+            if (onSelect) onSelect("settings");
+            if (pathname !== "/settings") router.push("/settings");
+          }}
           title="System Settings"
-          className="w-10 h-10 rounded-[4px] flex items-center justify-center text-text-muted hover:text-text-secondary hover:bg-shadow transition-all"
+          className={`w-10 h-10 rounded-[4px] flex items-center justify-center transition-all ${
+            pathname === "/settings" || activeItem === "settings"
+              ? "bg-shadow text-gaze border border-mist"
+              : "text-text-muted hover:text-text-secondary hover:bg-shadow"
+          }`}
         >
           <Settings className="w-4 h-4" />
         </button>

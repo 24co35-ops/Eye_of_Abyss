@@ -14,7 +14,6 @@ from uuid import UUID, uuid4
 from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy import Boolean, Column, DateTime, String
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
@@ -29,8 +28,41 @@ ACCESS_EXPIRE_MIN  = 15
 REFRESH_EXPIRE_DAYS = 7
 REFRESH_COOKIE     = "refresh_token"
 
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer  = HTTPBearer(auto_error=False)
+
+# ── Password hashing provider (passlib -> bcrypt -> stdlib pbkdf2) ───────────
+try:
+    from passlib.context import CryptContext
+    _pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    def hash_password(plain: str) -> str:
+        return _pwd_ctx.hash(plain)
+    def verify_password(plain: str, hashed: str) -> bool:
+        return _pwd_ctx.verify(plain, hashed)
+except Exception:
+    try:
+        import bcrypt
+        def hash_password(plain: str) -> str:
+            return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        def verify_password(plain: str, hashed: str) -> bool:
+            try:
+                return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+            except Exception:
+                return False
+    except Exception:
+        import hashlib, hmac
+        def hash_password(plain: str) -> str:
+            salt = os.urandom(16).hex()
+            dk = hashlib.pbkdf2_hmac("sha256", plain.encode("utf-8"), salt.encode("utf-8"), 100000)
+            return f"pbkdf2:{salt}:{dk.hex()}"
+        def verify_password(plain: str, hashed: str) -> bool:
+            if not hashed or not hashed.startswith("pbkdf2:"):
+                return False
+            try:
+                _, salt, dk_hex = hashed.split(":", 2)
+                check = hashlib.pbkdf2_hmac("sha256", plain.encode("utf-8"), salt.encode("utf-8"), 100000)
+                return hmac.compare_digest(check.hex(), dk_hex)
+            except Exception:
+                return False
 
 
 # ── Role ─────────────────────────────────────────────────────────────────────
@@ -104,14 +136,6 @@ def decode_refresh_token(token: str) -> str:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=f"Invalid refresh token: {e}")
 
 
-# ── Password helpers ──────────────────────────────────────────────────────────
-
-def hash_password(plain: str) -> str:
-    return pwd_ctx.hash(plain)
-
-
-def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_ctx.verify(plain, hashed)
 
 
 # ── MetaMask / wallet sig verify ──────────────────────────────────────────────

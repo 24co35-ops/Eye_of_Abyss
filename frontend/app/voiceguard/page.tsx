@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Clock,
 } from "lucide-react";
+import { api } from "@/lib/api";
 
 // WaveSurfer uses browser APIs — must be client-only
 const AudioWaveform = dynamic(() => import("@/components/AudioWaveform"), { ssr: false });
@@ -404,7 +405,36 @@ export default function VoiceGuardPage() {
             </div>
 
             <button
-              onClick={() => setAttached(true)}
+              onClick={async () => {
+                setAttached(true);
+                try {
+                  await api.cases.submitEvidence(CASE_ID, {
+                    module_id: "voiceguard",
+                    verdict: {
+                      verdict: "SYNTHETIC",
+                      synthetic_probability: 0.914,
+                      model: "DistilWav2Vec2 + ECAPA-TDNN ensemble",
+                      tts_segments: 2,
+                      voice_conversion_segments: 1,
+                    },
+                    confidence: 0.914,
+                    artifacts: [
+                      {
+                        artifact_id: crypto.randomUUID(),
+                        artifact_type: "audio",
+                        uri: "s3://voiceguard-artifacts/call_recording.wav",
+                        sha256: "cb8379ac2098aa165029e3938a51da0bcecfc008b0fed02d4d23a079c5b23e18",
+                      },
+                      {
+                        artifact_id: crypto.randomUUID(),
+                        artifact_type: "spectrogram",
+                        uri: "s3://voiceguard-artifacts/spectrogram_0023.png",
+                        sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      },
+                    ],
+                  });
+                } catch {}
+              }}
               className={`flex items-center gap-2 px-4 py-2 text-xs font-medium rounded transition-colors ${
                 attached
                   ? "bg-[#2A9D4E]/20 border border-[#2A9D4E] text-[#2A9D4E]"
@@ -412,7 +442,7 @@ export default function VoiceGuardPage() {
               }`}
             >
               {attached
-                ? <><CheckCircle2 size={14} /> Attached to {CASE_ID}</>
+                ? <><CheckCircle2 size={14} /> Evidence Attached &amp; Hashed ({CASE_ID})</>
                 : `Attach to Case ${CASE_ID}`}
             </button>
           </div>

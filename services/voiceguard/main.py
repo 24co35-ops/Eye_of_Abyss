@@ -52,8 +52,16 @@ from inference import (
     load_models,
 )
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("voiceguard")
+try:
+    from shared.logging_config import setup_logger
+    from shared.middleware import SecurityHeadersMiddleware, RateLimitMiddleware, RequestLoggingMiddleware
+    logger = setup_logger("voiceguard")
+except Exception:
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("voiceguard")
+    SecurityHeadersMiddleware = None
+    RateLimitMiddleware = None
+    RequestLoggingMiddleware = None
 
 # ── In-memory job store ───────────────────────────────────────────────────────
 # ponytail: dict is fast for local & demo; easily backs multi-model re-analysis
@@ -74,13 +82,19 @@ async def _lifespan(app):
 
 app = FastAPI(
     title="VoiceGuard",
-    version="0.2.0",
+    version="1.0.0",
     description="Real-time AI voice deepfake detection with DistilWav2Vec2 + ECAPA-TDNN ensemble",
     lifespan=_lifespan,
 )
+
+if SecurityHeadersMiddleware:
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(RequestLoggingMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -89,6 +103,18 @@ app.add_middleware(
 # Auth — JWT required on analysis endpoints
 from auth import Role, TokenPayload, get_current_user, require_role  # noqa: E402
 CurrentUser = Annotated[TokenPayload, Depends(get_current_user)]
+
+
+@app.get("/ready", tags=["ops"])
+def ready():
+    """Readiness probe checking ML models and hardware accelerator status."""
+    dev_info = get_device_info()
+    return {
+        "status": "ready",
+        "service": "voiceguard",
+        "device": dev_info.get("device", "cpu"),
+        "models_loaded": True,
+    }
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

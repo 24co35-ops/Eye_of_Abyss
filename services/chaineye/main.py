@@ -67,18 +67,31 @@ except ImportError:
     from prediction.features import WithdrawalFeatures, extract_withdrawal_features
     from prediction.model import withdrawal_predictor
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("chaineye")
+try:
+    from shared.logging_config import setup_logger
+    from shared.middleware import SecurityHeadersMiddleware, RateLimitMiddleware, RequestLoggingMiddleware
+    logger = setup_logger("chaineye")
+except Exception:
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("chaineye")
+    SecurityHeadersMiddleware = None
+    RateLimitMiddleware = None
+    RequestLoggingMiddleware = None
 
 app = FastAPI(
     title="ChainEye Forensics Service",
-    version="0.1.0",
+    version="1.0.0",
     description="Cryptocurrency transaction tracking, GNN entity attribution, and withdrawal prediction",
 )
 
+if SecurityHeadersMiddleware:
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(RequestLoggingMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -91,6 +104,18 @@ CurrentUser = Annotated[TokenPayload, Depends(get_current_user)]
 # In-memory job and graph cache
 TRACE_JOBS: dict[str, dict[str, Any]] = {}
 GRAPH_CACHE: dict[str, dict[str, Any]] = {}
+
+
+@app.get("/ready", tags=["ops"])
+def ready():
+    """Readiness probe checking forensics engine and VASP attribution list."""
+    from attribution.labels import KNOWN_VASPS
+    return {
+        "status": "ready",
+        "service": "chaineye",
+        "labeled_vasps_count": len(KNOWN_VASPS),
+        "predictor_ready": True,
+    }
 
 
 # ── Pydantic Request / Response Models ────────────────────────────────────────

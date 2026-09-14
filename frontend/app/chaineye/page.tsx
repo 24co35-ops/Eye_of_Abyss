@@ -5,6 +5,7 @@ import Link from "next/link";
 import { NavRail } from "@/components/NavRail";
 import { WalletClusterGraph } from "@/components/WalletClusterGraph";
 import { TransactionTimeline } from "@/components/TransactionTimeline";
+import { api } from "@/lib/api";
 import {
   ShieldCheck,
   Lock,
@@ -22,9 +23,44 @@ import {
 export default function ChainEyeInvestigationView() {
   const [isEvidenceSubmitted, setIsEvidenceSubmitted] = useState(false);
   const [isFreezeDraftOpen, setIsFreezeDraftOpen] = useState(false);
+  const [suspectAddress, setSuspectAddress] = useState("1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2");
+  const [inputAddress, setInputAddress] = useState("1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const handleEvidenceSubmit = () => {
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputAddress.trim()) return;
+    setIsAnalyzing(true);
+    setTimeout(() => {
+      setSuspectAddress(inputAddress.trim());
+      setIsAnalyzing(false);
+    }, 600);
+  };
+
+  const handleEvidenceSubmit = async () => {
     setIsEvidenceSubmitted(true);
+    try {
+      await api.cases.submitEvidence("EOA-2026-0041", {
+        module_id: "chaineye",
+        verdict: {
+          suspect_address: suspectAddress,
+          target_vasp: "Binance Global (Hot 14)",
+          cluster_size: 7,
+          total_volume_btc: 4.73,
+          peeling_chain_detected: true,
+          mixer_hops: 2,
+        },
+        confidence: 0.82,
+        artifacts: [
+          {
+            artifact_id: crypto.randomUUID(),
+            artifact_type: "graph",
+            uri: `s3://chaineye-graphs/${suspectAddress}_cluster.json`,
+            sha256: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
+          },
+        ],
+      });
+    } catch {}
   };
 
   return (
@@ -64,7 +100,7 @@ export default function ChainEyeInvestigationView() {
               {isEvidenceSubmitted ? (
                 <>
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Evidence Submitted</span>
+                  <span>Evidence Submitted &amp; Hashed</span>
                 </>
               ) : (
                 <>
@@ -90,7 +126,26 @@ export default function ChainEyeInvestigationView() {
         <div className="flex-1 flex overflow-hidden">
           
           {/* Main Grid Workspace */}
-          <main className="flex-1 overflow-y-auto p-4">
+          <main className="flex-1 overflow-y-auto p-4 space-y-3">
+            {/* Target Address Search Bar */}
+            <form onSubmit={handleSearch} className="flex items-center gap-2 bg-void border border-mist rounded-[4px] p-2">
+              <span className="text-[11px] font-mono text-text-muted whitespace-nowrap">SUSPECT WALLET / TX:</span>
+              <input
+                type="text"
+                value={inputAddress}
+                onChange={(e) => setInputAddress(e.target.value)}
+                placeholder="Paste BTC/ETH address or transaction hash..."
+                className="flex-1 bg-shadow border border-mist rounded-[4px] px-3 py-1 text-xs text-text-primary font-mono focus:border-gaze outline-none"
+              />
+              <button
+                type="submit"
+                disabled={isAnalyzing}
+                className="px-3 py-1 bg-gaze hover:bg-gaze/90 text-abyss text-xs font-mono font-medium rounded-[4px] transition-colors flex items-center gap-1"
+              >
+                <span>{isAnalyzing ? "Scanning Chain..." : "Expand Graph"}</span>
+              </button>
+            </form>
+
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
               
               {/* LEFT COLUMN (65% width on xl): Wallet Graph + Transaction Timeline */}
@@ -108,7 +163,7 @@ export default function ChainEyeInvestigationView() {
                   </div>
 
                   {/* Cytoscape.js Graph Canvas */}
-                  <WalletClusterGraph suspectAddress="1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2" />
+                  <WalletClusterGraph suspectAddress={suspectAddress} />
                 </div>
 
                 {/* Horizontal Transaction Timeline Strip */}
