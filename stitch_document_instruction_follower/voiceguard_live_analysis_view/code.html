@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"secondary-container":"#410bd7","tertiary-container":"#ff978e","error-container":"#93000a","on-primary-fixed-variant":"#614000","on-tertiary":"#680007","surface-container-highest":"#36333e","outline":"#9f8e79","secondary":"#c7bfff","surface-container-low":"#1c1a24","on-secondary":"#2c009e","on-tertiary-fixed-variant":"#93000f","inverse-surface":"#e6e0ee","background":"#14121b","on-primary":"#442c00","secondary-fixed":"#e5deff","on-secondary-fixed":"#180064","tertiary-fixed-dim":"#ffb4ac","surface-container-high":"#2b2933","primary":"#ffc56c","inverse-on-surface":"#322f39","on-background":"#e6e0ee","surface":"#14121b","inverse-primary":"#805600","outline-variant":"#514533","on-surface-variant":"#d6c4ac","on-error-container":"#ffdad6","on-error":"#690005","secondary-fixed-dim":"#c7bfff","on-surface":"#e6e0ee","primary-container":"#f0a500","surface-tint":"#ffba44","surface-container":"#211e28","tertiary-fixed":"#ffdad6","surface-variant":"#36333e","on-primary-container":"#5f3f00","tertiary":"#ffc0b9","on-tertiary-container":"#91000e","primary-fixed-dim":"#ffba44","on-tertiary-fixed":"#410003","surface-dim":"#14121b","on-secondary-fixed-variant":"#410bd7","on-primary-fixed":"#281800","on-secondary-container":"#b5abff","surface-bright":"#3b3842","error":"#ffb4ab","primary-fixed":"#ffddaf","surface-container-lowest":"#0f0d16"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"space-xs":"4px","space-lg":"24px","space-md":"16px","space-sm":"8px","space-xl":"32px","gutter":"16px","margin":"24px"},"fontFamily":{"data-sm":["JetBrains Mono"],"display-lg":["Space Grotesk"],"body-sm":["Space Grotesk"],"body-md":["Space Grotesk"],"data-md":["JetBrains Mono"],"headline-md":["Space Grotesk"],"data-lg":["JetBrains Mono"],"display-lg-mobile":["Space Grotesk"],"label-xs":["Space Grotesk"],"title-md":["Space Grotesk"],"headline-sm":["Space Grotesk"]},"fontSize":{"data-sm":["10px",{"lineHeight":"14px","letterSpacing":"0.02em","fontWeight":"500"}],"display-lg":["32px",{"lineHeight":"40px","letterSpacing":"-0.02em","fontWeight":"600"}],"body-sm":["11px",{"lineHeight":"16px","letterSpacing":"0.02em","fontWeight":"400"}],"body-md":["13px",{"lineHeight":"18px","letterSpacing":"0.01em","fontWeight":"400"}],"data-md":["12px",{"lineHeight":"16px","letterSpacing":"-0.01em","fontWeight":"400"}],"headline-md":["22px",{"lineHeight":"28px","letterSpacing":"-0.01em","fontWeight":"500"}],"data-lg":["14px",{"lineHeight":"20px","letterSpacing":"-0.02em","fontWeight":"500"}],"display-lg-mobile":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"600"}],"label-xs":["10px",{"lineHeight":"12px","letterSpacing":"0.08em","fontWeight":"600"}],"title-md":["15px",{"lineHeight":"20px","letterSpacing":"0.01em","fontWeight":"500"}],"headline-sm":["18px",{"lineHeight":"24px","letterSpacing":"0em","fontWeight":"600"}]}}}}</script></head><body class="bg-surface-container-lowest font-body-md text-on-surface antialiased"><header class="fixed top-0 left-0 right-0 h-12 bg-surface-dim z-50 border-b border-outline-variant/40 flex items-center justify-between px-margin"><div class="flex items-center gap-space-sm"><img alt="Eye of Abyss Logo" class="h-7 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1XekgZ-QLo5gj_NXKy7fftV2ZgaVbeVtP3qk6xxuWVpa5FLdA8ycfE9mStiCzuzjCZVecls7376wFfHiU0lg3ZC-dCNbLbmySaqcq1hr4LHIzizWelVdT4Zf7QMBgID6wrjStNVJPztPOzGnBVVS7S3CV-kFF7jDK72kS5ARV8yWPrUxk3yQwrJkkOz0XZs0I7qsXNCVS9WcRRbGSykOwM1l316xYMgAR34VEddMaAOE6G9pbIcXW7MnOSX"/><div class="flex items-center gap-space-sm"><span class="font-headline-sm text-title-md text-on-surface tracking-tight font-semibold">Eye of Abyss</span><span class="px-space-xs py-[2px] bg-surface-container border border-outline-variant/60 font-data-sm text-[9px] text-on-surface-variant uppercase tracking-widest rounded">CYBER INTELLIGENCE</span></div></div><div class="flex items-center gap-space-md"><div class="relative flex items-center justify-center"><button aria-label="Notifications" class="text-on-surface-variant hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span></button><span class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-primary-container ring-2 ring-surface-dim"></span></div><div class="h-4 w-[1px] bg-outline-variant/40"></div><div class="flex items-center gap-space-sm"><div class="flex flex-col text-right"><span class="font-body-md text-title-md text-on-surface leading-tight font-medium">Insp. R. Mehta</span><span class="font-data-sm text-data-sm text-on-surface-variant leading-none">CYBER CELL // MH-HQ</span></div><div class="p-[1px] border border-outline-variant/60 rounded-full"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3IVFrh2D1q-b408j0I1mb09NSsppTIKAhOvhXVwQXlRMPFHx8SFH3aaLleXGtbSvEOuAwsrri2477fjtqUgK4LJHIk_mTvyuINIWS_P4-iCyCzxVjj1mJWMwyJnUOiX_yn-EiJQXNbeJVZoyDwen4xJKjn_Q5iKBuVJXimn-7lD81LdfzB_ktn6zH2JihO_9qhQIs5rvVGTPNMN6ZX7x3wXtj-WaGcth8XMxS9jgTy7y9g7Bb_aqFgQ"/></div></div></div></header><aside class="fixed left-0 top-12 bottom-0 w-14 bg-surface-container-lowest z-40 border-r border-outline-variant/40 flex flex-col justify-between py-space-sm"><nav class="flex flex-col w-full gap-space-xs" data-active-classes="text-primary-container bg-surface-container-high border-l-[3px] border-primary-container"><a class="relative flex items-center justify-center w-full h-11 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" data-path="command-center" href="#" title="Command Center"><span class="material-symbols-outlined text-[22px]">dashboard</span></a><a class="relative flex items-center justify-center w-full h-11 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" data-path="cases" href="#" title="Cases"><span class="material-symbols-outlined text-[22px]">folder_open</span></a><a aria-current="page" class="relative flex items-center justify-center w-full h-11 transition-all text-primary-container bg-surface-container-high border-l-[3px] border-primary-container" data-path="voiceguard" href="#" title="VoiceGuard Forensics"><span class="material-symbols-outlined text-[22px]">graphic_eq</span></a><a class="relative flex items-center justify-center w-full h-11 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" data-path="shadowtrace" href="#" title="ShadowTrace Intelligence"><span class="material-symbols-outlined text-[22px]">radar</span></a><a class="relative flex items-center justify-center w-full h-11 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" data-path="chaineye" href="#" title="ChainEye Crypto Tracing"><span class="material-symbols-outlined text-[22px]">token</span></a></nav><div class="flex flex-col w-full pt-space-xs border-t border-outline-variant/30"><a class="relative flex items-center justify-center w-full h-11 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-all" data-path="settings" href="#" title="System Settings"><span class="material-symbols-outlined text-[20px]">settings</span></a></div></aside><div class="pl-14"><main class="relative w-full pt-12 min-h-screen bg-surface-container-lowest"><div class="flex flex-col w-full">
+<script>
+    (function() {
+      const railLinks = document.querySelectorAll('aside nav a');
+      railLinks.forEach(link => {
+        if (link.getAttribute('data-path') === 'voiceguard') {
+          link.classList.add('text-primary-container', 'bg-surface-container-high', 'border-l-[3px]', 'border-primary-container');
+          link.classList.remove('text-on-surface-variant');
+        } else {
+          link.classList.remove('text-primary-container', 'bg-surface-container-high', 'border-l-[3px]', 'border-primary-container');
+        }
+      });
+    })();
+  </script>
+<div class="w-full px-margin py-space-md flex flex-col gap-space-lg max-w-[1400px] mx-auto">
+<div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-space-sm bg-surface-container-low px-space-md py-space-sm rounded-lg shadow-sm">
+<div class="flex items-center gap-space-xs font-body-md text-title-md">
+<a class="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1" href="#">
+<span class="material-symbols-outlined text-[16px]">folder_open</span> Cases
+        </a>
+<span class="text-on-surface-variant/40">/</span>
+<span class="font-data-md text-data-md text-on-surface-variant font-medium">EOA-2026-0037</span>
+<span class="text-on-surface-variant/40">/</span>
+<span class="text-primary font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px] text-primary">graphic_eq</span> VoiceGuard Forensics
+        </span>
+</div>
+<div class="flex items-center gap-space-sm self-end md:self-auto">
+<button class="px-space-md py-1.5 rounded text-error bg-surface-container-highest hover:bg-error hover:text-on-error font-body-md text-body-md font-medium transition-all flex items-center gap-1" type="button">
+<span class="material-symbols-outlined text-[18px]">stop_circle</span>
+          Stop Analysis
+        </button>
+<button class="px-space-md py-1.5 rounded bg-primary-container/30 text-on-primary-container/40 font-body-md text-body-md font-semibold cursor-not-allowed flex items-center gap-1" disabled="" type="button">
+<span class="material-symbols-outlined text-[18px]">save</span>
+          Save Evidence
+        </button>
+</div>
+</div>
+<div class="w-full bg-surface-container-low rounded-lg p-space-md shadow-md flex flex-col md:flex-row items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-sm w-full md:w-auto">
+<span class="relative flex h-3 w-3">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75"></span>
+<span class="relative inline-flex rounded-full h-3 w-3 bg-error"></span>
+</span>
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm tracking-tight text-on-surface uppercase">Live Analysis</span>
+<span class="font-data-md text-data-md text-primary font-semibold bg-surface-container-highest px-2 py-0.5 rounded">02:14 ELAPSED</span>
+</div>
+</div>
+<div class="flex items-center gap-space-xs text-on-surface-variant font-body-md text-title-md">
+<span class="font-data-md text-data-md text-on-surface font-semibold text-primary">EOA-2026-0037</span>
+<span class="text-on-surface-variant/40">—</span>
+<span class="text-on-surface">Vishing Call Intercept (PSTN Inbound)</span>
+</div>
+<div class="flex items-center gap-space-sm self-end md:self-auto">
+<span class="px-3 py-1 bg-error-container text-on-error-container rounded-full font-headline-sm text-label-xs tracking-wider flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px]">warning</span>
+          SYNTHETIC DETECTED
+        </span>
+<div class="flex items-baseline gap-1 bg-surface-container-highest px-2.5 py-1 rounded">
+<span class="font-label-xs text-label-xs text-on-surface-variant uppercase">Conf</span>
+<span class="font-data-lg text-data-lg font-bold text-error">91.4%</span>
+</div>
+</div>
+</div>
+<div class="w-full bg-surface-container-low rounded-lg p-space-lg shadow-md flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-primary text-[20px]">equalizer</span>
+<h2 class="font-headline-md text-headline-sm text-on-surface font-semibold">Audio Waveform &amp; Vocal Classification</h2>
+</div>
+<div class="flex items-center gap-space-md font-body-sm text-body-sm text-on-surface-variant">
+<div class="flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-primary-container"></span>
+<span>Real Speech</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-error"></span>
+<span>Synthetic Segment</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-on-surface-variant/40"></span>
+<span>Unclassified / Silence</span>
+</div>
+</div>
+</div>
+<div class="relative w-full h-44 bg-surface-container-lowest rounded overflow-hidden flex items-center justify-center p-2">
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 1000 160">
+<defs>
+<lineargradient id="synthGrad" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#ffb4ab" stop-opacity="0.8"></stop>
+<stop offset="100%" stop-color="#93000a" stop-opacity="0.3"></stop>
+</lineargradient>
+<lineargradient id="realGrad" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#c7bfff" stop-opacity="0.9"></stop>
+<stop offset="100%" stop-color="#410bd7" stop-opacity="0.4"></stop>
+</lineargradient>
+</defs>
+<line stroke="#36333e" stroke-dasharray="2 4" stroke-width="1" x1="0" x2="1000" y1="80" y2="80"></line>
+<g fill="#514533" opacity="0.6">
+<rect height="10" rx="1" width="2" x="5" y="75"></rect>
+<rect height="16" rx="1" width="2" x="12" y="72"></rect>
+<rect height="20" rx="1" width="2" x="19" y="70"></rect>
+<rect height="8" rx="1" width="2" x="26" y="76"></rect>
+<rect height="12" rx="1" width="2" x="33" y="74"></rect>
+<rect height="4" rx="1" width="2" x="40" y="78"></rect>
+</g>
+<g fill="#c7bfff">
+<rect height="50" rx="1.5" width="3" x="58" y="55"></rect>
+<rect height="76" rx="1.5" width="3" x="65" y="42"></rect>
+<rect height="100" rx="1.5" width="3" x="72" y="30"></rect>
+<rect height="70" rx="1.5" width="3" x="79" y="45"></rect>
+<rect height="84" rx="1.5" width="3" x="86" y="38"></rect>
+<rect height="110" rx="1.5" width="3" x="93" y="25"></rect>
+<rect height="90" rx="1.5" width="3" x="100" y="35"></rect>
+<rect height="64" rx="1.5" width="3" x="107" y="48"></rect>
+<rect height="96" rx="1.5" width="3" x="114" y="32"></rect>
+<rect height="80" rx="1.5" width="3" x="121" y="40"></rect>
+<rect height="44" rx="1.5" width="3" x="128" y="58"></rect>
+<rect height="30" rx="1.5" width="3" x="135" y="65"></rect>
+<rect height="16" rx="1.5" width="3" x="142" y="72"></rect>
+</g>
+<g fill="#514533" opacity="0.5">
+<rect height="8" rx="1" width="2" x="150" y="76"></rect>
+<rect height="12" rx="1" width="2" x="157" y="74"></rect>
+<rect height="6" rx="1" width="2" x="164" y="77"></rect>
+</g>
+<g fill="#ffb4ab">
+<rect height="130" rx="1.5" width="3" x="171" y="15"></rect>
+<rect height="140" rx="1.5" width="3" x="178" y="10"></rect>
+<rect height="136" rx="1.5" width="3" x="185" y="12"></rect>
+<rect height="144" rx="1.5" width="3" x="192" y="8"></rect>
+<rect height="124" rx="1.5" width="3" x="199" y="18"></rect>
+<rect height="132" rx="1.5" width="3" x="206" y="14"></rect>
+<rect height="140" rx="1.5" width="3" x="213" y="10"></rect>
+<rect height="116" rx="1.5" width="3" x="220" y="22"></rect>
+<rect height="100" rx="1.5" width="3" x="227" y="30"></rect>
+</g>
+<g fill="#514533" opacity="0.5">
+<rect height="12" rx="1" width="2" x="238" y="74"></rect>
+<rect height="20" rx="1" width="2" x="248" y="70"></rect>
+<rect height="10" rx="1" width="2" x="258" y="75"></rect>
+<rect height="16" rx="1" width="2" x="268" y="72"></rect>
+<rect height="4" rx="1" width="2" x="278" y="78"></rect>
+<rect height="14" rx="1" width="2" x="288" y="73"></rect>
+<rect height="10" rx="1" width="2" x="298" y="75"></rect>
+<rect height="20" rx="1" width="2" x="308" y="70"></rect>
+<rect height="12" rx="1" width="2" x="318" y="74"></rect>
+<rect height="8" rx="1" width="2" x="328" y="76"></rect>
+</g>
+<g fill="#ffb4ab">
+<rect height="104" rx="1.5" width="3" x="335" y="28"></rect>
+<rect height="124" rx="1.5" width="3" x="342" y="18"></rect>
+<rect height="116" rx="1.5" width="3" x="349" y="22"></rect>
+<rect height="132" rx="1.5" width="3" x="356" y="14"></rect>
+<rect height="140" rx="1.5" width="3" x="363" y="10"></rect>
+<rect height="128" rx="1.5" width="3" x="370" y="16"></rect>
+<rect height="112" rx="1.5" width="3" x="377" y="24"></rect>
+<rect height="120" rx="1.5" width="3" x="384" y="20"></rect>
+<rect height="96" rx="1.5" width="3" x="391" y="32"></rect>
+<rect height="108" rx="1.5" width="3" x="398" y="26"></rect>
+<rect height="130" rx="1.5" width="3" x="405" y="15"></rect>
+<rect height="136" rx="1.5" width="3" x="412" y="12"></rect>
+<rect height="110" rx="1.5" width="3" x="419" y="25"></rect>
+<rect height="124" rx="1.5" width="3" x="426" y="18"></rect>
+<rect height="100" rx="1.5" width="3" x="433" y="30"></rect>
+<rect height="112" rx="1.5" width="3" x="440" y="24"></rect>
+<rect height="128" rx="1.5" width="3" x="447" y="16"></rect>
+<rect height="90" rx="1.5" width="3" x="454" y="35"></rect>
+<rect height="64" rx="1.5" width="3" x="461" y="48"></rect>
+<rect height="44" rx="1.5" width="3" x="468" y="58"></rect>
+<rect height="28" rx="1.5" width="3" x="475" y="66"></rect>
+<rect height="20" rx="1.5" width="3" x="482" y="70"></rect>
+<rect height="10" rx="1.5" width="3" x="489" y="75"></rect>
+</g>
+<g fill="#514533" opacity="0.5">
+<rect height="8" rx="1" width="2" x="498" y="76"></rect>
+<rect height="12" rx="1" width="2" x="505" y="74"></rect>
+<rect height="16" rx="1" width="2" x="515" y="72"></rect>
+<rect height="8" rx="1" width="2" x="525" y="76"></rect>
+<rect height="10" rx="1" width="2" x="532" y="75"></rect>
+</g>
+<g fill="#ffb4ab">
+<rect height="112" rx="1.5" width="3" x="538" y="24"></rect>
+<rect height="128" rx="1.5" width="3" x="545" y="16"></rect>
+<rect height="136" rx="1.5" width="3" x="552" y="12"></rect>
+<rect height="140" rx="1.5" width="3" x="559" y="10"></rect>
+<rect height="120" rx="1.5" width="3" x="566" y="20"></rect>
+<rect height="130" rx="1.5" width="3" x="573" y="15"></rect>
+<rect height="104" rx="1.5" width="3" x="580" y="28"></rect>
+<rect height="116" rx="1.5" width="3" x="587" y="22"></rect>
+<rect height="96" rx="1.5" width="3" x="594" y="32"></rect>
+<rect height="80" rx="1.5" width="3" x="601" y="40"></rect>
+<rect height="64" rx="1.5" width="3" x="608" y="48"></rect>
+<rect height="40" rx="1.5" width="3" x="615" y="60"></rect>
+<rect height="24" rx="1.5" width="3" x="622" y="68"></rect>
+<rect height="12" rx="1.5" width="3" x="629" y="74"></rect>
+<rect height="16" rx="1.5" width="3" x="636" y="72"></rect>
+</g>
+<g fill="#514533" opacity="0.5">
+<rect height="8" rx="1" width="2" x="645" y="76"></rect>
+<rect height="14" rx="1" width="2" x="655" y="73"></rect>
+<rect height="10" rx="1" width="2" x="665" y="75"></rect>
+<rect height="6" rx="1" width="2" x="674" y="77"></rect>
+</g>
+<g fill="#c7bfff">
+<rect height="56" rx="1.5" width="3" x="680" y="52"></rect>
+<rect height="84" rx="1.5" width="3" x="687" y="38"></rect>
+<rect height="108" rx="1.5" width="3" x="694" y="26"></rect>
+<rect height="120" rx="1.5" width="3" x="701" y="20"></rect>
+<rect height="96" rx="1.5" width="3" x="708" y="32"></rect>
+<rect height="70" rx="1.5" width="3" x="715" y="45"></rect>
+<rect height="100" rx="1.5" width="3" x="722" y="30"></rect>
+<rect height="80" rx="1.5" width="3" x="729" y="40"></rect>
+<rect height="104" rx="1.5" width="3" x="736" y="28"></rect>
+<rect height="124" rx="1.5" width="3" x="743" y="18"></rect>
+<rect height="110" rx="1.5" width="3" x="750" y="25"></rect>
+<rect height="92" rx="1.5" width="3" x="757" y="34"></rect>
+<rect height="76" rx="1.5" width="3" x="764" y="42"></rect>
+<rect height="100" rx="1.5" width="3" x="771" y="30"></rect>
+<rect height="64" rx="1.5" width="3" x="778" y="48"></rect>
+<rect height="44" rx="1.5" width="3" x="785" y="58"></rect>
+<rect height="84" rx="1.5" width="3" x="792" y="38"></rect>
+<rect height="72" rx="1.5" width="3" x="799" y="44"></rect>
+<rect height="36" rx="1.5" width="3" x="806" y="62"></rect>
+<rect height="20" rx="1.5" width="3" x="813" y="70"></rect>
+<rect height="12" rx="1.5" width="3" x="820" y="74"></rect>
+<rect height="16" rx="1.5" width="3" x="827" y="72"></rect>
+<rect height="28" rx="1.5" width="3" x="834" y="66"></rect>
+<rect height="56" rx="1.5" width="3" x="841" y="52"></rect>
+<rect height="76" rx="1.5" width="3" x="848" y="42"></rect>
+<rect height="64" rx="1.5" width="3" x="855" y="48"></rect>
+<rect height="40" rx="1.5" width="3" x="862" y="60"></rect>
+<rect height="20" rx="1.5" width="3" x="869" y="70"></rect>
+<rect height="10" rx="1.5" width="3" x="876" y="75"></rect>
+<rect height="16" rx="1.5" width="3" x="883" y="72"></rect>
+<rect height="24" rx="1.5" width="3" x="890" y="68"></rect>
+<rect height="44" rx="1.5" width="3" x="897" y="58"></rect>
+<rect height="64" rx="1.5" width="3" x="904" y="48"></rect>
+<rect height="80" rx="1.5" width="3" x="911" y="40"></rect>
+<rect height="56" rx="1.5" width="3" x="918" y="52"></rect>
+<rect height="32" rx="1.5" width="3" x="925" y="64"></rect>
+<rect height="20" rx="1.5" width="3" x="932" y="70"></rect>
+<rect height="12" rx="1.5" width="3" x="939" y="74"></rect>
+<rect height="8" rx="1.5" width="3" x="946" y="76"></rect>
+<rect height="16" rx="1.5" width="3" x="953" y="72"></rect>
+<rect height="24" rx="1.5" width="3" x="960" y="68"></rect>
+<rect height="12" rx="1.5" width="3" x="967" y="74"></rect>
+<rect height="6" rx="1.5" width="3" x="974" y="77"></rect>
+<rect height="8" rx="1.5" width="3" x="981" y="76"></rect>
+<rect height="4" rx="1.5" width="3" x="988" y="78"></rect>
+<rect height="2" rx="1.5" width="3" x="995" y="79"></rect>
+</g>
+</svg>
+<div class="absolute top-0 bottom-0 left-[60%] w-[2px] bg-primary z-20 pointer-events-none">
+<div class="absolute -top-1 -translate-x-1/2 w-2.5 h-2.5 bg-primary rotate-45"></div>
+<div class="absolute -bottom-1 -translate-x-1/2 w-2.5 h-2.5 bg-primary rotate-45"></div>
+</div>
+<div class="absolute top-2 right-3 font-data-sm text-data-sm bg-surface-container-high px-2 py-0.5 rounded text-primary">
+          HEAD: 01:20.400
+        </div>
+</div>
+<div class="w-full flex flex-col gap-1">
+<div class="w-full h-2 rounded bg-surface-container-highest overflow-hidden flex">
+<div class="h-full bg-surface-container" style="width: 5.8%;"></div>
+<div class="h-full bg-secondary" style="width: 9.2%;" title="Real (94%)"></div>
+<div class="h-full bg-surface-container" style="width: 2.1%;"></div>
+<div class="h-full bg-error" style="width: 6.0%;" title="Synthetic - TTS (96%)"></div>
+<div class="h-full bg-surface-container" style="width: 10.5%;"></div>
+<div class="h-full bg-error" style="width: 16.4%;" title="Synthetic - VC (89%)"></div>
+<div class="h-full bg-surface-container" style="width: 3.7%;"></div>
+<div class="h-full bg-error" style="width: 11.2%;" title="Synthetic - TTS (91%)"></div>
+<div class="h-full bg-surface-container" style="width: 3.1%;"></div>
+<div class="h-full bg-secondary" style="width: 32.0%;" title="Real (87%)"></div>
+</div>
+<div class="w-full flex justify-between font-data-sm text-data-sm text-on-surface-variant pt-1 px-1">
+<span>00:00</span>
+<span>00:30</span>
+<span>01:00</span>
+<span>01:30</span>
+<span>02:00</span>
+<span class="text-primary font-semibold">02:14 (END)</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg w-full">
+<div class="lg:col-span-7 bg-surface-container-low rounded-lg p-space-md shadow-md flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between pb-space-sm mb-space-sm">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-primary text-[20px]">table_chart</span>
+<h3 class="font-headline-sm text-title-md text-on-surface font-semibold">Segment Analysis Breakdown</h3>
+</div>
+<span class="font-data-sm text-data-sm text-on-surface-variant bg-surface-container px-2 py-0.5 rounded">5 SEGMENTS CLASSIFIED</span>
+</div>
+<div class="w-full overflow-x-auto">
+<table class="w-full text-left font-body-md text-body-md">
+<thead>
+<tr class="bg-surface-container-highest text-on-surface-variant font-label-xs text-label-xs uppercase">
+<th class="py-2 px-3">Start</th>
+<th class="py-2 px-3">Duration</th>
+<th class="py-2 px-3">Classification</th>
+<th class="py-2 px-3">Confidence</th>
+<th class="py-2 px-3">Engine Signature</th>
+</tr>
+</thead>
+<tbody class="divide-y-0">
+<tr class="hover:bg-surface-container transition-colors">
+<td class="py-2.5 px-3 font-data-md text-data-md text-on-surface">00:08</td>
+<td class="py-2.5 px-3 font-data-md text-data-md text-on-surface-variant">12s</td>
+<td class="py-2.5 px-3">
+<span class="px-2 py-0.5 rounded-full font-label-xs text-label-xs uppercase bg-secondary-container/40 text-secondary">
+                      REAL SPEECH
+                    </span>
+</td>
+<td class="py-2.5 px-3 font-data-md text-data-md font-semibold text-secondary">94%</td>
+<td class="py-2.5 px-3 text-on-surface-variant text-body-sm">Biological vocal tract harmonics</td>
+</tr>
+<tr class="bg-surface-container/30 hover:bg-surface-container transition-colors">
+<td class="py-2.5 px-3 font-data-md text-data-md text-on-surface">00:23</td>
+<td class="py-2.5 px-3 font-data-md text-data-md text-on-surface-variant">8s</td>
+<td class="py-2.5 px-3">
+<span class="px-2 py-0.5 rounded-full font-label-xs text-label-xs uppercase bg-error-container text-on-error-container font-semibold">
+                      SYNTHETIC
+                    </span>
+</td>
+<td class="py-2.5 px-3 font-data-md text-data-md font-semibold text-error">96%</td>
+<td class="py-2.5 px-3 text-on-surface text-body-sm font-medium">Text-to-Speech (TTS)</td>
+</tr>
+<tr class="hover:bg-surface-container transition-colors">
+<td class="py-2.5 px-3 font-data-md text-data-md text-on-surface">00:45</td>
+<td class="py-2.5 px-3 font-data-md text-data-md text-on-surface-variant">22s</td>
+<td class="py-2.5 px-3">
+<span class="px-2 py-0.5 rounded-full font-label-xs text-label-xs uppercase bg-error-container text-on-error-container font-semibold">
+                      SYNTHETIC
+                    </span>
+</td>
+<td class="py-2.5 px-3 font-data-md text-data-md font-semibold text-error">89%</td>
+<td class="py-2.5 px-3 text-on-surface text-body-sm font-medium">Neural Voice Conversion (RVC/DDSP)</td>
+</tr>
+<tr class="bg-surface-container/30 hover:bg-surface-container transition-colors">
+<td class="py-2.5 px-3 font-data-md text-data-md text-on-surface">01:12</td>
+<td class="py-2.5 px-3 font-data-md text-data-md text-on-surface-variant">15s</td>
+<td class="py-2.5 px-3">
+<span class="px-2 py-0.5 rounded-full font-label-xs text-label-xs uppercase bg-error-container text-on-error-container font-semibold">
+                      SYNTHETIC
+                    </span>
+</td>
+<td class="py-2.5 px-3 font-data-md text-data-md font-semibold text-error">91%</td>
+<td class="py-2.5 px-3 text-on-surface text-body-sm font-medium">Text-to-Speech (TTS)</td>
+</tr>
+<tr class="hover:bg-surface-container transition-colors">
+<td class="py-2.5 px-3 font-data-md text-data-md text-on-surface">01:31</td>
+<td class="py-2.5 px-3 font-data-md text-data-md text-on-surface-variant">43s</td>
+<td class="py-2.5 px-3">
+<span class="px-2 py-0.5 rounded-full font-label-xs text-label-xs uppercase bg-secondary-container/40 text-secondary">
+                      REAL SPEECH
+                    </span>
+</td>
+<td class="py-2.5 px-3 font-data-md text-data-md font-semibold text-secondary">87%</td>
+<td class="py-2.5 px-3 text-on-surface-variant text-body-sm">Unmodified PSTN handset channel</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="mt-space-md p-space-sm bg-surface-container rounded flex items-center justify-between font-data-sm text-data-sm">
+<span class="text-on-surface-variant flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-primary">verified_user</span>
+            Audio Hash: <code class="text-on-surface">SHA-256: 8a4f91b7...d30e19</code>
+</span>
+<button class="text-primary hover:text-on-surface font-semibold flex items-center gap-1 transition-colors" type="button">
+<span class="material-symbols-outlined text-[14px]">content_copy</span> Copy Full Hash
+          </button>
+</div>
+</div>
+<div class="lg:col-span-5 bg-surface-container-low rounded-lg p-space-md shadow-md flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between pb-space-sm mb-space-sm">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-primary text-[20px]">grain</span>
+<h3 class="font-headline-sm text-title-md text-on-surface font-semibold">Spectral Analysis</h3>
+</div>
+<span class="font-label-xs text-label-xs uppercase bg-error-container text-on-error-container px-2 py-0.5 rounded font-semibold">
+              SEGMENT 00:23 INSPECT
+            </span>
+</div>
+<div class="relative w-full h-44 bg-surface-container-lowest rounded overflow-hidden p-1 flex flex-col justify-end">
+<svg class="w-full h-full" preserveaspectratio="none" viewbox="0 0 400 160">
+<defs>
+<lineargradient id="specGrad" x1="0" x2="0" y1="1" y2="0">
+<stop offset="0%" stop-color="#14121b" stop-opacity="0.9"></stop>
+<stop offset="25%" stop-color="#410bd7" stop-opacity="0.8"></stop>
+<stop offset="60%" stop-color="#c7bfff" stop-opacity="0.7"></stop>
+<stop offset="85%" stop-color="#ffba44" stop-opacity="0.85"></stop>
+<stop offset="100%" stop-color="#ffb4ab" stop-opacity="1"></stop>
+</lineargradient>
+<pattern height="20" id="melGrid" patternunits="userSpaceOnUse" width="40">
+<path d="M 40 0 L 0 0 0 20" fill="none" stroke="#2b2933" stroke-width="0.5"></path>
+</pattern>
+</defs>
+<rect fill="url(#specGrad)" height="160" opacity="0.85" width="400"></rect>
+<rect fill="url(#melGrid)" height="160" opacity="0.6" width="400"></rect>
+<path d="M 0,130 Q 50,110 100,125 T 200,90 T 300,105 T 400,80 L 400,160 L 0,160 Z" fill="#410bd7" opacity="0.6"></path>
+<path d="M 0,90 Q 60,60 120,75 T 240,40 T 320,55 T 400,30 L 400,160 L 0,160 Z" fill="#ffba44" opacity="0.35"></path>
+<path d="M 40,45 Q 120,20 220,35 T 380,15" fill="none" stroke="#ffb4ab" stroke-dasharray="3 3" stroke-width="2"></path>
+<line stroke="#ffb4ab" stroke-dasharray="2 2" stroke-width="1.5" x1="120" x2="120" y1="10" y2="150"></line>
+<line stroke="#ffb4ab" stroke-dasharray="2 2" stroke-width="1.5" x1="280" x2="280" y1="10" y2="150"></line>
+</svg>
+<div class="absolute top-2 left-3 font-data-sm text-data-sm text-on-surface bg-surface-container-lowest/80 px-2 py-0.5 rounded">
+              Mel Spectrogram (80-8000 Hz)
+            </div>
+<div class="absolute bottom-2 right-3 font-data-sm text-data-sm text-error bg-surface-container-lowest/80 px-2 py-0.5 rounded flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span> Unnatural High-Band Energy Cutoff
+            </div>
+</div>
+<div class="grid grid-cols-2 gap-space-sm mt-space-sm">
+<div class="bg-surface-container p-space-sm rounded">
+<span class="font-label-xs text-label-xs uppercase text-on-surface-variant block">GAN Artifact Signature</span>
+<div class="flex items-center gap-1.5 mt-0.5">
+<span class="material-symbols-outlined text-[16px] text-error">dangerous</span>
+<span class="font-data-md text-data-md font-bold text-error">DETECTED</span>
+</div>
+</div>
+<div class="bg-surface-container p-space-sm rounded">
+<span class="font-label-xs text-label-xs uppercase text-on-surface-variant block">Spectral Flatness Delta</span>
+<div class="flex items-center gap-1.5 mt-0.5">
+<span class="font-data-md text-data-md font-bold text-error">+0.34</span>
+<span class="font-data-sm text-data-sm text-on-surface-variant">(Anomalous)</span>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-space-md flex items-center justify-between text-body-sm font-body-sm text-on-surface-variant bg-surface-container-high px-space-sm py-1.5 rounded">
+<span>Phase Inversion Anomaly: <b class="text-on-surface">Positive (88.2%)</b></span>
+<span>Sample Rate: <b class="text-on-surface">16.0 kHz</b></span>
+</div>
+</div>
+</div>
+<div class="w-full bg-surface-container-low rounded-lg p-space-lg shadow-xl relative overflow-hidden">
+<div class="absolute top-0 bottom-0 left-0 w-1.5 bg-primary-container"></div>
+<div class="pl-space-sm flex flex-col gap-space-md">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-space-sm pb-space-sm">
+<div class="flex items-center gap-space-sm">
+<span class="material-symbols-outlined text-primary-container text-[24px]">gavel</span>
+<div>
+<h2 class="font-headline-md text-headline-sm text-on-surface font-semibold">Forensic Analysis Summary &amp; Chain of Custody</h2>
+<span class="font-data-sm text-data-sm text-on-surface-variant">SUBMISSION READY // SECTION 65B INDIAN EVIDENCE ACT COMPLIANT</span>
+</div>
+</div>
+<div class="flex items-center gap-2 bg-surface-container px-3 py-1 rounded font-data-sm text-data-sm">
+<span class="text-on-surface-variant">Analyst:</span>
+<span class="text-on-surface font-semibold">Insp. R. Mehta (MH-HQ-CYBER)</span>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-space-md">
+<div class="bg-surface-container p-space-md rounded flex flex-col justify-between">
+<span class="font-label-xs text-label-xs text-on-surface-variant uppercase tracking-wider">Primary Classification</span>
+<div class="my-space-xs">
+<span class="font-headline-md text-headline-md font-bold text-error block leading-tight">SYNTHETIC DETECTED</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Multi-engine deepfake acoustic footprint</span>
+</div>
+<div class="flex items-center gap-2 font-data-md text-data-md text-on-surface pt-2">
+<span class="text-on-surface-variant">Ensemble Confidence:</span>
+<span class="text-error font-bold">91.4%</span>
+</div>
+</div>
+<div class="bg-surface-container p-space-md rounded flex flex-col justify-between">
+<span class="font-label-xs text-label-xs text-on-surface-variant uppercase tracking-wider">Acoustic Time Share</span>
+<div class="my-space-xs">
+<div class="flex items-baseline gap-2">
+<span class="font-headline-md text-headline-md font-bold text-primary">1m 02s</span>
+<span class="font-data-sm text-data-sm text-on-surface-variant">of 2m 14s total</span>
+</div>
+<span class="font-body-sm text-body-sm text-error font-medium">46.2% of recording is non-human audio</span>
+</div>
+<div class="w-full bg-surface-container-highest h-2 rounded overflow-hidden flex">
+<div class="bg-error h-full" style="width: 46.2%;"></div>
+<div class="bg-secondary h-full" style="width: 53.8%;"></div>
+</div>
+</div>
+<div class="bg-surface-container p-space-md rounded flex flex-col justify-between">
+<span class="font-label-xs text-label-xs text-on-surface-variant uppercase tracking-wider">Ensemble Pipeline</span>
+<div class="my-space-xs font-data-md text-data-md text-on-surface space-y-1">
+<div class="flex justify-between">
+<span class="text-on-surface-variant">Model:</span>
+<span class="font-medium">DistilWav2Vec2 + ECAPA</span>
+</div>
+<div class="flex justify-between">
+<span class="text-on-surface-variant">Chunk Latency:</span>
+<span class="text-primary font-medium">162ms avg</span>
+</div>
+<div class="flex justify-between">
+<span class="text-on-surface-variant">Detected Types:</span>
+<span class="text-error font-medium">TTS (2), VC (1)</span>
+</div>
+</div>
+<span class="font-data-sm text-data-sm text-on-surface-variant">Pipeline: FastSpeech2 / DiffSVC signatures</span>
+</div>
+</div>
+<div class="flex flex-col sm:flex-row items-center justify-between gap-space-md pt-space-sm">
+<div class="flex items-center gap-space-sm text-body-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px] text-primary">lock_clock</span>
+<span>Tamper-evident snapshot generated at <b>14:32:09 IST</b></span>
+</div>
+<div class="flex items-center gap-space-sm w-full sm:w-auto">
+<button class="w-full sm:w-auto px-space-lg py-2.5 rounded bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-body-md text-body-md font-medium transition-colors flex items-center justify-center gap-2" type="button">
+<span class="material-symbols-outlined text-[18px]">print</span>
+              Export Lab Dossier
+            </button>
+<button class="w-full sm:w-auto px-space-lg py-2.5 rounded bg-primary-container hover:bg-primary text-on-primary font-body-md text-body-md font-semibold transition-all flex items-center justify-center gap-2 shadow-sm" id="attachCaseBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">attachment</span>
+              Attach to Case EOA-2026-0037
+            </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<script>
+    document.getElementById('attachCaseBtn')?.addEventListener('click', function() {
+      const originalText = this.innerHTML;
+      this.innerHTML = '<span class="material-symbols-outlined text-[18px] animate-spin">refresh</span> Attaching Forensic Dossier...';
+      this.classList.add('opacity-80', 'pointer-events-none');
+      
+      setTimeout(() => {
+        this.innerHTML = '<span class="material-symbols-outlined text-[18px]">check_circle</span> Attached to Case EOA-2026-0037';
+        this.classList.remove('bg-primary-container', 'hover:bg-primary', 'text-on-primary');
+        this.classList.add('bg-secondary-container', 'text-secondary');
+      }, 900);
+    });
+  </script>
+</div></main></div></body></html>

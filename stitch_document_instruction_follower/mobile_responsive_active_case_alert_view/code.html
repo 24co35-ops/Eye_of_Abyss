@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "secondary-container": "#410bd7", "tertiary-container": "#ff978e", "error-container": "#93000a", "on-primary-fixed-variant": "#614000", "on-tertiary": "#680007", "surface-container-highest": "#36333e", "outline": "#9f8e79", "secondary": "#c7bfff", "surface-container-low": "#1c1a24", "on-secondary": "#2c009e", "on-tertiary-fixed-variant": "#93000f", "inverse-surface": "#e6e0ee", "background": "#14121b", "on-primary": "#442c00", "secondary-fixed": "#e5deff", "on-secondary-fixed": "#180064", "tertiary-fixed-dim": "#ffb4ac", "surface-container-high": "#2b2933", "primary": "#ffc56c", "inverse-on-surface": "#322f39", "on-background": "#e6e0ee", "surface": "#14121b", "inverse-primary": "#805600", "outline-variant": "#514533", "on-surface-variant": "d6c4ac", "on-error-container": "#ffdad6", "on-error": "#690005", "secondary-fixed-dim": "#c7bfff", "on-surface": "#e6e0ee", "primary-container": "#f0a500", "surface-tint": "#ffba44", "surface-container": "#211e28", "tertiary-fixed": "#ffdad6", "surface-variant": "#36333e", "on-primary-container": "#5f3f00", "tertiary": "#ffc0b9", "on-tertiary-container": "#91000e", "primary-fixed-dim": "#ffba44", "on-tertiary-fixed": "#410003", "surface-dim": "#14121b", "on-secondary-fixed-variant": "#410bd7", "on-primary-fixed": "#281800", "on-secondary-container": "#b5abff", "surface-bright": "#3b3842", "error": "#ffb4ab", "primary-fixed": "#ffddaf", "surface-container-lowest": "#0f0d16" }, borderRadius: { DEFAULT: "0.125rem", lg: "0.25rem", xl: "0.5rem", full: "0.75rem" }, spacing: { "space-xs": "4px", "space-lg": "24px", "space-md": "16px", "space-sm": "8px", "space-xl": "32px", "gutter": "16px", "margin": "24px" }, fontFamily: { "data-sm": ["JetBrains Mono"], "display-lg": ["Space Grotesk"], "body-sm": ["Space Grotesk"], "body-md": ["Space Grotesk"], "data-md": ["JetBrains Mono"], "headline-md": ["Space Grotesk"], "data-lg": ["JetBrains Mono"], "display-lg-mobile": ["Space Grotesk"], "label-xs": ["Space Grotesk"], "title-md": ["Space Grotesk"], "headline-sm": ["Space Grotesk"] }, fontSize: { "data-sm": ["10px", { lineHeight: "14px", letterSpacing: "0.02em", fontWeight: "500" }], "display-lg": ["32px", { lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "600" }], "body-sm": ["11px", { lineHeight: "16px", letterSpacing: "0.02em", fontWeight: "400" }], "body-md": ["13px", { lineHeight: "18px", letterSpacing: "0.01em", fontWeight: "400" }], "data-md": ["12px", { lineHeight: "16px", letterSpacing: "-0.01em", fontWeight: "400" }], "headline-md": ["22px", { lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "500" }], "data-lg": ["14px", { lineHeight: "20px", letterSpacing: "-0.02em", fontWeight: "500" }], "display-lg-mobile": ["24px", { lineHeight: "32px", letterSpacing: "-0.01em", fontWeight: "600" }], "label-xs": ["10px", { lineHeight: "12px", letterSpacing: "0.08em", fontWeight: "600" }], "title-md": ["15px", { lineHeight: "20px", letterSpacing: "0.01em", fontWeight: "500" }], "headline-sm": ["18px", { lineHeight: "24px", letterSpacing: "0em", fontWeight: "600" }] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;background-color:#14121b;}body{overscroll-behavior:none;color:#e6e0ee;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-background font-body-md text-body-md text-on-surface flex flex-col min-h-screen"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-14 px-gutter flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm"><button aria-label="Menu" class="w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">menu</span></button><img alt="Eye of Abyss Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1XekgZ-QLo5gj_NXKy7fftV2ZgaVbeVtP3qk6xxuWVpa5FLdA8ycfE9mStiCzuzjCZVecls7376wFfHiU0lg3ZC-dCNbLbmySaqcq1hr4LHIzizWelVdT4Zf7QMBgID6wrjStNVJPztPOzGnBVVS7S3CV-kFF7jDK72kS5ARV8yWPrUxk3yQwrJkkOz0XZs0I7qsXNCVS9WcRRbGSykOwM1l316xYMgAR34VEddMaAOE6G9pbIcXW7MnOSX"/><span class="font-title-md text-title-md uppercase tracking-wider text-on-surface font-semibold">Eye of Abyss</span></div><div class="flex items-center gap-space-sm"><button aria-label="Alerts" class="relative w-11 h-11 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-primary-container ring-2 ring-surface"></span></button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex-1 flex flex-col relative w-full pt-14 pb-20 bg-surface"><div class="px-gutter py-space-xs"><span class="font-label-xs text-label-xs text-outline uppercase tracking-widest">Dossier Feed</span></div><div class="flex flex-col w-full">
+<!-- Critical Flash Alert Banner -->
+<div class="relative w-full bg-[#C92A2A] text-white px-gutter py-space-sm flex items-center justify-between shadow-lg overflow-hidden">
+<div class="flex items-center gap-space-sm z-10">
+<div class="relative flex items-center justify-center w-8 h-8 rounded-full bg-white/20">
+<span class="absolute inline-flex h-full w-full rounded-full bg-primary opacity-60 animate-ping"></span>
+<span class="material-symbols-outlined text-primary text-[20px] relative z-10" style="font-variation-settings: 'FILL' 1;">warning</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm uppercase tracking-wider font-semibold text-white leading-tight">Withdrawal Alert</span>
+<span class="font-body-sm text-body-sm text-white/90 font-medium">EOA-2026-0041 — ChainEye Node</span>
+</div>
+</div>
+<span class="font-data-sm text-data-sm text-white/80 uppercase px-space-xs py-0.5 rounded bg-black/20 font-mono tracking-widest z-10">P1-CRIT</span>
+</div>
+<!-- Main Content Space Container -->
+<div class="px-gutter pt-space-md pb-space-lg flex flex-col gap-space-md">
+<!-- Alert Detail Countdown Card -->
+<div class="relative bg-surface-container-low rounded-DEFAULT p-space-md overflow-hidden shadow-xl" style="box-shadow: inset 4px 0 0 0 #F0A500;">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="font-body-sm text-body-sm text-secondary font-medium tracking-wide">PREDICTED WINDOW OPENS IN</span>
+</div>
+<span class="font-data-sm text-data-sm text-primary px-space-xs py-0.5 bg-primary/10 rounded-full">INTERCEPT PHASE</span>
+</div>
+<!-- Live Counter Display -->
+<div class="my-space-sm flex items-baseline gap-2">
+<span class="font-data-lg text-[42px] leading-none font-bold text-primary tracking-tight" id="countdown-val">03:41:58</span>
+<span class="font-data-sm text-data-sm text-outline uppercase font-mono tracking-widest">REM</span>
+</div>
+<div class="flex items-center justify-between text-secondary mb-space-xs font-data-sm text-data-sm">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+          Sep 16, 02:00–04:00 UTC
+        </span>
+<span class="font-medium text-on-surface">IST 07:30–09:30</span>
+</div>
+<!-- Indigo Signal Confidence Module -->
+<div class="mt-space-sm pt-space-sm border-t border-[#2A2640]/40 flex flex-col gap-1.5">
+<div class="flex justify-between items-center font-body-sm text-body-sm">
+<span class="text-secondary font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-[#A594FF]">analytics</span>
+            Model Confidence
+          </span>
+<span class="font-data-md text-data-md text-[#A594FF] font-semibold">74% High Probability</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-secondary-container rounded-full" style="width: 74%;"></div>
+</div>
+</div>
+</div>
+<!-- Forensic Target Evidence Box -->
+<div class="bg-surface-container-lowest p-space-md rounded-DEFAULT flex flex-col gap-space-sm shadow-md">
+<div class="flex items-center justify-between pb-space-xs border-b border-[#2A2640]/50">
+<span class="font-label-xs text-label-xs text-outline uppercase tracking-widest">Target Asset Dossier</span>
+<span class="font-data-sm text-data-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px] text-primary">verified</span>
+          Verified Ledger
+        </span>
+</div>
+<!-- Data List Metrics -->
+<div class="flex flex-col gap-space-sm pt-1">
+<!-- Target Wallet -->
+<div class="flex items-center justify-between">
+<span class="font-body-sm text-body-sm text-secondary">Wallet</span>
+<div class="flex items-center gap-1.5 bg-surface-container px-2 py-1 rounded">
+<span class="font-data-md text-data-md text-on-surface font-mono selection:bg-primary selection:text-surface-container-lowest">1BvBMSE...VN2</span>
+<button aria-label="Copy Wallet Address" class="text-secondary hover:text-primary transition-colors flex items-center" id="copy-btn" onclick="copyWallet()">
+<span class="material-symbols-outlined text-[16px]" id="copy-icon">content_copy</span>
+</button>
+</div>
+</div>
+<!-- Extraction Amount -->
+<div class="flex items-center justify-between">
+<span class="font-body-sm text-body-sm text-secondary">Amount</span>
+<div class="text-right">
+<div class="font-data-lg text-data-lg text-primary font-bold">4.73 BTC</div>
+<div class="font-data-sm text-data-sm text-secondary tracking-tight font-mono">≈ ₹2,41,80,950</div>
+</div>
+</div>
+<!-- Designated VASP -->
+<div class="flex items-center justify-between">
+<span class="font-body-sm text-body-sm text-secondary">Destination VASP</span>
+<div class="flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+<span class="font-data-md text-data-md text-on-surface font-medium">Binance Global (Offshore)</span>
+</div>
+</div>
+<!-- Transaction Signature Pattern -->
+<div class="flex items-center justify-between">
+<span class="font-body-sm text-body-sm text-secondary">Pattern Flag</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-tertiary-container/10 text-tertiary-fixed-dim font-data-sm text-data-sm">
+<span class="material-symbols-outlined text-[12px]">cyclone</span>
+            T2 Dormancy Cycle Trigger
+          </span>
+</div>
+</div>
+</div>
+<!-- Interactive Execution Actions -->
+<div class="flex flex-col gap-space-sm pt-space-xs">
+<button class="w-full bg-primary-container hover:bg-surface-tint active:scale-[0.99] text-surface-container-lowest py-3 px-space-md rounded-DEFAULT font-title-md text-title-md font-semibold tracking-wide flex items-center justify-center gap-space-sm shadow-md transition-all duration-150" onclick="handleDraftFreeze(this)">
+<span class="material-symbols-outlined text-[20px]">gavel</span>
+<span>Draft Freeze Request</span>
+</button>
+<button class="w-full bg-surface-container-high hover:bg-surface-container-highest active:scale-[0.99] text-on-surface py-3 px-space-md rounded-DEFAULT font-title-md text-title-md font-medium tracking-wide flex items-center justify-center gap-space-sm transition-all duration-150" onclick="handleViewCase()">
+<span class="material-symbols-outlined text-[20px] text-secondary">visibility</span>
+<span>View Full Case · EOA-0041</span>
+</button>
+</div>
+<!-- Live Forensics Stream Context -->
+<div class="bg-surface-container-low rounded-DEFAULT p-space-md flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<span class="font-label-xs text-label-xs text-outline uppercase tracking-wider">Investigative Module Status</span>
+<span class="font-data-sm text-data-sm text-secondary">Real-time sync</span>
+</div>
+<!-- Tri-Module Forensic Sensor Pills -->
+<div class="grid grid-cols-3 gap-space-xs pt-0.5">
+<!-- VoiceGuard Status -->
+<div class="flex flex-col items-center justify-center py-2 px-1 rounded-DEFAULT bg-surface-container text-center">
+<div class="flex items-center gap-1 mb-0.5">
+<span class="material-symbols-outlined text-[14px] text-[#51CF66]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="font-headline-sm text-[11px] font-semibold text-on-surface">VoiceGuard</span>
+</div>
+<span class="font-data-sm text-[9px] text-[#51CF66] uppercase font-mono">Matched 98%</span>
+</div>
+<!-- ShadowTrace Status -->
+<div class="flex flex-col items-center justify-center py-2 px-1 rounded-DEFAULT bg-surface-container text-center opacity-70">
+<div class="flex items-center gap-1 mb-0.5">
+<span class="material-symbols-outlined text-[14px] text-outline">remove</span>
+<span class="font-headline-sm text-[11px] font-semibold text-outline">ShadowTrace</span>
+</div>
+<span class="font-data-sm text-[9px] text-outline uppercase font-mono">Standby</span>
+</div>
+<!-- ChainEye Status Active Alert -->
+<div class="flex flex-col items-center justify-center py-2 px-1 rounded-DEFAULT bg-primary/10 text-center relative overflow-hidden">
+<div class="flex items-center gap-1 mb-0.5">
+<span class="material-symbols-outlined text-[14px] text-primary animate-bounce">warning</span>
+<span class="font-headline-sm text-[11px] font-semibold text-primary">ChainEye</span>
+</div>
+<span class="font-data-sm text-[9px] text-primary uppercase font-mono font-bold tracking-tight">Active Hit</span>
+</div>
+</div>
+</div>
+<!-- Chain of Custody Stamp -->
+<div class="flex items-center justify-between px-space-xs py-1 text-outline font-data-sm text-data-sm font-mono border-l-2 border-primary pl-2">
+<span>REF_SIG: 8f9b..e430</span>
+<span>NODE: AP-SOUTH-IN</span>
+</div>
+</div>
+</div>
+<script>
+  function copyWallet() {
+    const text = '1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2';
+    navigator.clipboard?.writeText(text);
+    const icon = document.getElementById('copy-icon');
+    if (icon) {
+      icon.innerText = 'check';
+      icon.classList.add('text-primary');
+      setTimeout(() => {
+        icon.innerText = 'content_copy';
+        icon.classList.remove('text-primary');
+      }, 1500);
+    }
+  }
+
+  function handleDraftFreeze(btn) {
+    const prevText = btn.innerHTML;
+    btn.innerHTML = `<span class="material-symbols-outlined text-[20px] animate-spin">refresh</span><span>Initiating Section 91...</span>`;
+    btn.classList.add('opacity-90');
+    setTimeout(() => {
+      btn.innerHTML = `<span class="material-symbols-outlined text-[20px]">task_alt</span><span>Subpoena Rendered</span>`;
+      btn.classList.remove('bg-primary-container');
+      btn.classList.add('bg-[#2A9D4E]', 'text-white');
+    }, 900);
+  }
+
+  function handleViewCase() {
+    console.log("Navigating to comprehensive audit for EOA-2026-0041");
+  }
+
+  // Micro countdown decrement tick
+  let totalSeconds = 3 * 3600 + 41 * 60 + 58;
+  const countEl = document.getElementById('countdown-val');
+  if (countEl) {
+    setInterval(() => {
+      if (totalSeconds > 0) {
+        totalSeconds--;
+        const hrs = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+        const mins = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+        const secs = String(totalSeconds % 60).padStart(2, '0');
+        countEl.innerText = `${hrs}:${mins}:${secs}`;
+      }
+    }, 1000);
+  }
+</script></main><nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]" data-active-classes="text-primary border-t-2 border-primary"><div class="flex justify-around items-center h-16 px-space-xs"><a aria-current="page" class="flex flex-col items-center justify-center w-14 h-11 transition-colors text-primary border-t-2 border-primary" data-path="dossier-feed" href="#"><span class="material-symbols-outlined text-[20px]">shield</span><span class="font-label-xs text-label-xs mt-space-xs">Dossiers</span></a><a class="flex flex-col items-center justify-center w-14 h-11 text-on-surface-variant hover:text-on-surface transition-colors" data-path="network-graph" href="#"><span class="material-symbols-outlined text-[20px]">hub</span><span class="font-label-xs text-label-xs mt-space-xs">Graph</span></a><a class="flex flex-col items-center justify-center w-14 h-11 text-on-surface-variant hover:text-on-surface transition-colors" data-path="intel-scanner" href="#"><span class="material-symbols-outlined text-[20px]">radar</span><span class="font-label-xs text-label-xs mt-space-xs">Scan</span></a><a class="flex flex-col items-center justify-center w-14 h-11 text-on-surface-variant hover:text-on-surface transition-colors" data-path="audit-vault" href="#"><span class="material-symbols-outlined text-[20px]">history_edu</span><span class="font-label-xs text-label-xs mt-space-xs">Audit</span></a></div></nav></body></html>

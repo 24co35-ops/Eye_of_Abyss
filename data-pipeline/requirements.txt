@@ -1,0 +1,5 @@
+numpy==1.26.4
+pandas==2.2.2
+networkx==3.3
+anthropic==0.28.0
+faker==25.2.0

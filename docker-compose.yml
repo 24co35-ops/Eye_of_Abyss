@@ -1,0 +1,4 @@
+# Convenience alias — actual compose file lives in infrastructure/
+# Usage: docker-compose up --build
+include:
+  - infrastructure/docker-compose.yml

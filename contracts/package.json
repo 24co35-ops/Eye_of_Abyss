@@ -1,0 +1,16 @@
+{
+  "name": "eye-of-abyss-contracts",
+  "version": "0.1.0",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:mumbai": "hardhat run scripts/deploy.ts --network polygonMumbai"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0",
+    "dotenv": "^16.4.5",
+    "typescript": "^5.4.5",
+    "ts-node": "^10.9.2"
+  }
+}
