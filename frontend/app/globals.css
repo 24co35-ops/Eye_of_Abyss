@@ -1,32 +1,73 @@
-@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --abyss:          #0D0B14;
-  --void:           #13111E;
-  --shadow:         #1C1929;
-  --mist:           #2A2640;
-  --gaze:           #F0A500;
-  --gaze-dim:       #7A5300;
-  --signal:         #6B4FFF;
-  --signal-dim:     #3D2E99;
-  --threat:         #C92A2A;
-  --safe:           #2A9D4E;
-  --text-primary:   #E8E6F2;
+  --abyss: #0D0B14;
+  --void: #13111E;
+  --shadow: #1C1929;
+  --mist: #2A2640;
+  --gaze: #F0A500;
+  --gaze-dim: #7A5300;
+  --signal: #6B4FFF;
+  --signal-dim: #3D2E99;
+  --threat: #C92A2A;
+  --safe: #2A9D4E;
+  --text-primary: #E8E6F2;
   --text-secondary: #8884A8;
-  --text-muted:     #4A4768;
+  --text-muted: #4A4768;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
-body {
+html, body {
   background-color: var(--abyss);
   color: var(--text-primary);
   font-family: "Space Grotesk", sans-serif;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
 }
 
-code, .mono { font-family: "JetBrains Mono", monospace; }
+/* Data / hash typography */
+code, kbd, samp, pre, .mono, [data-mono] {
+  font-family: "JetBrains Mono", monospace !important;
+}
+
+/* Custom crisp dark scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #13111E;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2A2640;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4A4768;
+}
+
+/* Precise borders, no soft blurred shadows */
+.border-mist {
+  border-color: #2A2640;
+}
+
+.bg-abyss { background-color: #0D0B14; }
+.bg-void { background-color: #13111E; }
+.bg-shadow { background-color: #1C1929; }

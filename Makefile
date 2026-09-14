@@ -47,8 +47,21 @@ compile-contracts:
 deploy-mumbai:
 	cd contracts && npx hardhat run scripts/deploy.ts --network polygonMumbai
 
-# ── Data pipeline ──────────────────────────────────────────────────────────
+# ── Data pipeline & Demo targets ──────────────────────────────────────────
 generate-data:
 	cd data-pipeline && python main.py generate --count 500 \
 		--archetypes investment_fraudster darknet_vendor ransomware_operator \
 		--output-dir ./output
+
+seed:
+	python scripts/seed.py
+
+demo:
+	python scripts/demo_pipeline.py
+
+anchor-test:
+	python scripts/anchor_test.py
+
+test:
+	pytest -v
+

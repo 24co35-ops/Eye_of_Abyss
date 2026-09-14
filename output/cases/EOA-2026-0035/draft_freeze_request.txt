@@ -1,0 +1,8 @@
+URGENT CRYPTOCURRENCY FREEZE DIRECTIVE
+Reference: Case EOA-2026-0035 / NCRP-2026-974998
+Target VASP: Binance Global (Compliance & Legal Operations)
+Suspect Wallet Address: 1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2
+Amount Involved: 4.73 BTC (~INR 2.4 Cr)
+Predicted Withdrawal Window: Sep 16, 02:00-04:00 UTC
+Blockchain Evidence Anchor: 0xmock16ba5575acef75807cbdc256299441dd6aa7e6c2
+Investigating Officer: Insp. R. Mehta, Cybercrime Cell

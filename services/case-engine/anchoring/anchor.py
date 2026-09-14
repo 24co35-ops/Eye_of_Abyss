@@ -17,9 +17,24 @@ from datetime import datetime, timezone
 from typing import Any, Optional, Union
 from uuid import UUID
 
-import httpx
-from web3 import Web3
-from web3.exceptions import ContractLogicError, TransactionNotFound
+try:
+    from web3 import Web3
+    from web3.exceptions import ContractLogicError, TransactionNotFound
+except ImportError:
+    class ContractLogicError(Exception):  # type: ignore
+        pass
+
+    class TransactionNotFound(Exception):  # type: ignore
+        pass
+
+    class Web3:  # type: ignore
+        @staticmethod
+        def to_checksum_address(addr: str) -> str:
+            return addr
+
+        class HTTPProvider:
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                pass
 
 logger = logging.getLogger("case_engine.anchoring")
 

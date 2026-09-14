@@ -271,7 +271,10 @@ async def verify_evidence(case_id: str, evidence_id: str, db: DB, user: CurrentU
     if not ev:
         raise HTTPException(status_code=404, detail="Evidence not found")
 
-    from services.case_engine.anchoring.anchor import verify_evidence_onchain
+    try:
+        from anchoring.anchor import verify_evidence_onchain
+    except ImportError:
+        from services.case_engine.anchoring.anchor import verify_evidence_onchain
     verification = verify_evidence_onchain(ev.hash_sha256)
     return {
         "evidence_id": str(ev.evidence_id),

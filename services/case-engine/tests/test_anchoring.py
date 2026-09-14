@@ -7,10 +7,28 @@ import hashlib
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
-
 import httpx
 import pytest
-from hexbytes import HexBytes
+
+try:
+    from hexbytes import HexBytes
+except ImportError:
+    class HexBytes:  # type: ignore
+        def __init__(self, val):
+            if isinstance(val, bytes):
+                self._val = "0x" + val.hex()
+            elif isinstance(val, str):
+                self._val = val if val.startswith("0x") else "0x" + val
+            else:
+                self._val = str(val)
+        def hex(self):
+            return self._val.removeprefix("0x")
+        def to_0x_hex(self):
+            return self._val if self._val.startswith("0x") else "0x" + self._val
+        def __str__(self):
+            return self.to_0x_hex()
+        def __repr__(self):
+            return f"HexBytes('{self.to_0x_hex()}')"
 
 import os
 import sys

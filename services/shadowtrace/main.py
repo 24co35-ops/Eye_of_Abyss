@@ -1,67 +1,414 @@
-"""ShadowTrace — Dark web actor attribution & stylometry service. Port 8002."""
+"""ShadowTrace — Dark web actor attribution & stylometry service. Port 8002.
 
+Design-doc §2.2 & PRD §4.2:
+  - POST /fingerprint: extract stylometric vector (lexical, syntactic, n-gram, BERT)
+  - POST /attribute: k-NN actor attribution + temporal analysis → EvidenceObject
+  - GET /actors/{actor_id}: retrieve known criminal actor profile
+  - POST /actors: register/update criminal actor profile with text samples
+  - GET /graph/export: export cross-platform actor network (Cytoscape JSON / GraphML)
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import hashlib
+import json
+import logging
 import os
 import sys
 import uuid
+from contextlib import asynccontextmanager
+from typing import Any, Dict, List, Literal, Optional, Union
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
-# Shared package import path
+# Ensure shared package and local modules are importable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "shared")))
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 try:
     from shared.schemas import Artifact, CriminalActorProfile, EvidenceObject, ModuleEvidence
 except ImportError:
     from schemas import Artifact, CriminalActorProfile, EvidenceObject, ModuleEvidence  # type: ignore
 
-app = FastAPI(title="ShadowTrace", version="0.1.0", description="Dark web actor attribution")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+from stylometry.features import (
+    FINGERPRINT_DIM,
+    cosine_similarity,
+    extract_fingerprint,
+    lexical_features,
+    syntactic_features,
+)
+from stylometry.vectorstore import (
+    get_actor,
+    get_all_actors,
+    knn_search,
+    store_size,
+    upsert_actor,
+)
+from temporal.analysis import temporal_profile
+from network.graph import (
+    add_actor_edge,
+    add_actor_node,
+    export_cytoscape_json,
+    export_graphml,
+    get_actor_neighbors,
+)
+from corpus import (
+    get_actor_profile,
+    get_all_profiles,
+    load_synthetic_corpus,
+)
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+
+# ── Lifespan Context Manager ──────────────────────────────────────────────────
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Load synthetic actor corpus and initialize stylometry models on startup."""
+    try:
+        count = load_synthetic_corpus(30)
+        logger.info("ShadowTrace initialized with %d actor profiles.", count)
+    except Exception as exc:
+        logger.error("Failed to initialize ShadowTrace corpus: %s", exc)
+    yield
+
+
+app = FastAPI(
+    title="ShadowTrace",
+    version="1.0.0",
+    description="Dark web actor attribution & stylometry service",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ── Request / Response Schemas ────────────────────────────────────────────────
+
+class FingerprintRequest(BaseModel):
+    text: str = Field(..., min_length=1, description="Raw text sample to fingerprint")
+    actor_id: Optional[str] = Field(None, description="Optional actor identifier to link")
+    handle: Optional[str] = Field(None, description="Optional handle/alias")
+    platform: Optional[str] = Field(None, description="Source platform (telegram, dread, etc.)")
+
+
+class FingerprintResponse(BaseModel):
+    fingerprint_id: str
+    vector_dim: int
+    vector: List[float]
+    lexical_features: Dict[str, float]
+    syntactic_features: Dict[str, Any]
+    status: str = "computed"
+
+
+class AttributeRequest(BaseModel):
+    text: str = Field(..., min_length=1, description="Unknown text sample to attribute")
+    case_id: Optional[str] = Field(None, description="Case ID for EvidenceObject attachment")
+    officer_id: Optional[str] = Field("INVESTIGATOR_ST_01", description="Investigating officer ID")
+    timestamps: Optional[List[Union[str, int, float]]] = Field(
+        None, description="Optional posting timestamps for temporal / timezone analysis"
+    )
+    k: Optional[int] = Field(5, description="Number of top matches to return")
+
+
+class CreateActorRequest(BaseModel):
+    actor: Optional[CriminalActorProfile] = None
+    archetype: Optional[str] = "investment_fraudster"
+    handles: List[str] = Field(default_factory=list)
+    platforms: List[str] = Field(default_factory=list)
+    timezone: str = "UTC"
+    active_hours: List[int] = Field(default_factory=list)
+    wallet_addresses: List[str] = Field(default_factory=list)
+    text_sample: Optional[str] = None
+
+
+# ── Helper Functions ──────────────────────────────────────────────────────────
+
+def _compute_sha256(data: dict) -> str:
+    """Compute deterministic SHA-256 hash of a dictionary."""
+    encoded = json.dumps(data, sort_keys=True, default=str).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.get("/health", tags=["ops"])
 def health():
-    return {"status": "ok", "service": "shadowtrace"}
-
-
-# ponytail: API stubs below — implement when pipeline and models are ready
-
-@app.post("/fingerprint", tags=["attribution"])
-async def fingerprint_text(payload: dict):
+    """Health check endpoint."""
     return {
-        "fingerprint_id": str(uuid.uuid4()),
-        "stylometric_vector_dim": 128,
-        "status": "computed",
+        "status": "ok",
+        "service": "shadowtrace",
+        "corpus_size": store_size(),
+        "fingerprint_dim": FINGERPRINT_DIM,
     }
 
 
+@app.post("/fingerprint", response_model=FingerprintResponse, tags=["attribution"])
+async def fingerprint_text(req: FingerprintRequest):
+    """Extract full stylometric fingerprint from raw text."""
+    if not req.text.strip():
+        raise HTTPException(status_code=422, detail="Text cannot be empty")
+
+    # Extract raw feature components
+    lex = lexical_features(req.text)
+    syn = syntactic_features(req.text)
+    fp_vec = extract_fingerprint(req.text)
+
+    fp_id = str(uuid.uuid4())
+
+    # If actor_id or handle is provided, upsert into store
+    if req.actor_id:
+        upsert_actor(
+            actor_id=req.actor_id,
+            handle=req.handle or req.actor_id,
+            platform=req.platform or "unknown",
+            vector=fp_vec,
+            metadata={"source": "api_fingerprint"},
+        )
+
+    return FingerprintResponse(
+        fingerprint_id=fp_id,
+        vector_dim=len(fp_vec),
+        vector=[round(float(x), 6) for x in fp_vec.tolist()],
+        lexical_features={
+            "ttr": round(float(lex[0]), 4),
+            "avg_word_length": round(float(lex[1]), 4),
+            "hapax_ratio": round(float(lex[2]), 4),
+            "yules_k": round(float(lex[3]), 4),
+        },
+        syntactic_features={
+            "avg_sentence_len": round(float(syn[0]), 4),
+            "sentence_len_variance": round(float(syn[1]), 4),
+            "subordinate_clause_ratio": round(float(syn[2]), 4),
+            "sentence_count": int(syn[3]),
+            "punctuation_freq": {
+                "!": round(float(syn[4]), 4),
+                "?": round(float(syn[5]), 4),
+                ".": round(float(syn[6]), 4),
+                ",": round(float(syn[7]), 4),
+                ";": round(float(syn[8]), 4),
+            },
+        },
+        status="computed",
+    )
+
+
 @app.post("/attribute", tags=["attribution"])
-async def attribute_actor(payload: dict):
+async def attribute_actor(req: AttributeRequest):
+    """Attribute unknown text to known actor clusters and generate an EvidenceObject."""
+    if not req.text.strip():
+        raise HTTPException(status_code=422, detail="Text cannot be empty")
+
+    # 1. Extract fingerprint vector
+    query_vec = extract_fingerprint(req.text)
+
+    # 2. k-NN search against vector store
+    top_matches = knn_search(query_vec, k=req.k or 5)
+
+    # 3. Temporal analysis
+    if req.timestamps:
+        temporal_res = temporal_profile(req.timestamps)
+    else:
+        # Fallback timezone estimate from top matched profile if available
+        matched_tz = "UTC+0"
+        if top_matches and top_matches[0].get("metadata", {}).get("timezone"):
+            matched_tz = top_matches[0]["metadata"]["timezone"]
+        temporal_res = {
+            "histogram": [0.0] * 24,
+            "peak_hour_utc": 0,
+            "trough_hour_utc": 0,
+            "dominant_period_hours": 24.0,
+            "diurnal_strength": 0.0,
+            "timezone_estimate": matched_tz,
+            "sample_count": 0,
+        }
+
+    # 4. Determine attribution outcome & confidence
+    if top_matches:
+        top_match = top_matches[0]
+        confidence = float(top_match["similarity"])
+        matched_actor_id = top_match["actor_id"]
+        matched_handle = top_match["handle"]
+        archetype = top_match.get("metadata", {}).get("archetype", "unknown")
+    else:
+        top_match = None
+        confidence = 0.0
+        matched_actor_id = None
+        matched_handle = "unattributed"
+        archetype = "unknown"
+
+    if confidence >= 0.75:
+        verdict_code = "ATTRIBUTED"
+        confidence_tier: Literal["high", "medium", "low"] = "high" if confidence >= 0.85 else "medium"
+        verdict = f"Actor attributed to known cluster: {matched_handle} ({archetype})"
+    else:
+        verdict_code = "UNATTRIBUTED"
+        confidence_tier = "low"
+        verdict = "Text sample does not match any known actor cluster with high confidence"
+
+    # 5. Build EvidenceObject
+    now = dt.datetime.now(dt.timezone.utc)
+    try:
+        case_uuid = uuid.UUID(req.case_id) if req.case_id else uuid.uuid4()
+    except ValueError:
+        case_uuid = uuid.uuid4()
+
+    evidence_id = uuid.uuid4()
+    officer_id = req.officer_id or "INVESTIGATOR_ST_01"
+
+    evidence_payload = {
+        "matched_actor_id": matched_actor_id,
+        "matched_handle": matched_handle,
+        "archetype": archetype,
+        "top_matches": top_matches,
+        "timezone_estimate": temporal_res["timezone_estimate"],
+        "temporal_profile": temporal_res,
+        "fingerprint_dim": FINGERPRINT_DIM,
+        "text_sample_snippet": req.text[:120],
+    }
+
+    artifacts = [
+        Artifact(
+            filename=f"shadowtrace_attribution_{evidence_id.hex[:8]}.json",
+            file_type="application/json",
+            description="Stylometric fingerprint attribution report and temporal profile",
+        )
+    ]
+
+    ev_obj = EvidenceObject(
+        evidence_id=evidence_id,
+        case_id=case_uuid,
+        module_id="shadowtrace",
+        created_at=now,
+        created_by=officer_id,
+        verdict=verdict,
+        verdict_code=verdict_code,
+        confidence=round(confidence, 4),
+        confidence_tier=confidence_tier,
+        payload=evidence_payload,
+        artifacts=artifacts,
+        submitted_by=officer_id,
+        submitted_at=now,
+    )
+
+    ev_dict = ev_obj.model_dump(mode="json")
+    ev_dict["hash_sha256"] = _compute_sha256(ev_dict)
+
     return {
-        "matched_actor_id": str(uuid.uuid4()),
-        "archetype": "darknet_vendor",
-        "confidence": 0.88,
-        "timezone_estimate": "UTC+3",
+        "status": "success",
+        "matched_actor_id": matched_actor_id,
+        "handle": matched_handle,
+        "archetype": archetype,
+        "confidence": round(confidence, 4),
+        "confidence_tier": confidence_tier,
+        "verdict": verdict,
+        "verdict_code": verdict_code,
+        "timezone_estimate": temporal_res["timezone_estimate"],
+        "top_matches": top_matches,
+        "temporal_profile": temporal_res,
+        "evidence_object": ev_dict,
     }
 
 
 @app.get("/actors/{actor_id}", tags=["attribution"])
-async def get_actor(actor_id: str):
-    return CriminalActorProfile(
-        actor_id=uuid.UUID(actor_id) if len(actor_id) == 36 else uuid.uuid4(),
-        archetype="investment_fraudster",
-        handles=["@phantom_fx", "dark_broker_99"],
-        platforms=["telegram", "dread", "exploit_in"],
-        timezone="UTC+3",
-        active_hours=[14, 15, 16, 17, 18, 19, 20, 21, 22],
-        wallet_addresses=["0x71C...498B", "bc1q...9xyz"],
-    ).model_dump()
+async def get_actor_by_id(actor_id: str):
+    """Retrieve full criminal actor profile by actor_id."""
+    profile = get_actor_profile(actor_id)
+    if profile:
+        return profile.model_dump()
+
+    # Fallback to vectorstore record
+    record = get_actor(actor_id)
+    if record:
+        meta = record.metadata
+        return CriminalActorProfile(
+            actor_id=uuid.UUID(actor_id) if len(actor_id) == 36 else uuid.uuid4(),
+            archetype=meta.get("archetype", "unknown"),
+            handles=meta.get("handles", [record.handle]),
+            platforms=meta.get("platforms", [record.platform]),
+            timezone=meta.get("timezone", "UTC"),
+            active_hours=meta.get("active_hours", []),
+            wallet_addresses=meta.get("wallet_addresses", []),
+        ).model_dump()
+
+    raise HTTPException(status_code=404, detail=f"Actor {actor_id} not found")
+
+
+@app.post("/actors", tags=["attribution"])
+async def create_or_update_actor(req: CreateActorRequest):
+    """Register a new criminal actor profile and compute initial fingerprint."""
+    if req.actor:
+        profile = req.actor
+    else:
+        actor_id = uuid.uuid4()
+        profile = CriminalActorProfile(
+            actor_id=actor_id,
+            archetype=req.archetype or "investment_fraudster",
+            handles=req.handles or [f"actor_{actor_id.hex[:8]}"],
+            platforms=req.platforms or ["telegram"],
+            timezone=req.timezone,
+            active_hours=req.active_hours,
+            wallet_addresses=req.wallet_addresses,
+        )
+
+    actor_id_str = str(profile.actor_id)
+    primary_handle = profile.handles[0] if profile.handles else actor_id_str
+    primary_platform = profile.platforms[0] if profile.platforms else "unknown"
+
+    # Compute fingerprint from text sample or fallback text
+    text = req.text_sample or f"{profile.archetype} {' '.join(profile.handles)}"
+    fp_vec = extract_fingerprint(text)
+
+    # Upsert into vectorstore
+    upsert_actor(
+        actor_id=actor_id_str,
+        handle=primary_handle,
+        platform=primary_platform,
+        vector=fp_vec,
+        metadata={
+            "archetype": profile.archetype,
+            "timezone": profile.timezone,
+            "handles": profile.handles,
+            "platforms": profile.platforms,
+            "wallet_addresses": profile.wallet_addresses,
+        },
+    )
+
+    # Add to graph
+    add_actor_node(
+        actor_id=actor_id_str,
+        handle=primary_handle,
+        platform=primary_platform,
+        archetype=profile.archetype,
+        metadata={
+            "timezone": profile.timezone,
+            "wallets": profile.wallet_addresses,
+        },
+    )
+
+    return profile.model_dump()
 
 
 @app.get("/graph/export", tags=["attribution"])
-async def export_actor_graph():
-    return {"nodes": [], "edges": []}
+async def export_actor_graph(
+    format: Literal["cytoscape", "graphml"] = Query("cytoscape", description="Export format")
+):
+    """Export the actor correlation network as Cytoscape JSON or GraphML XML."""
+    if format == "graphml":
+        xml_data = export_graphml()
+        return Response(content=xml_data, media_type="application/xml")
+    return export_cytoscape_json()
 
 
 if __name__ == "__main__":
