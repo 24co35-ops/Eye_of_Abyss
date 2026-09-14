@@ -256,6 +256,34 @@ async def anchor_case(
     }
 
 
+@app.get("/cases/{case_id}/evidence/{evidence_id}/verify", tags=["blockchain"])
+async def verify_evidence(case_id: str, evidence_id: str, db: DB, user: CurrentUser):
+    """Verifies on-chain anchoring status of an evidence item against EvidenceRegistry."""
+    case = await _get_case_or_404(case_id, db)
+    try:
+        ev_uid = uuid.UUID(evidence_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid evidence_id format")
+
+    ev = (await db.execute(
+        select(Evidence).where(Evidence.case_id == case.case_id, Evidence.evidence_id == ev_uid)
+    )).scalar_one_or_none()
+    if not ev:
+        raise HTTPException(status_code=404, detail="Evidence not found")
+
+    from services.case_engine.anchoring.anchor import verify_evidence_onchain
+    verification = verify_evidence_onchain(ev.hash_sha256)
+    return {
+        "evidence_id": str(ev.evidence_id),
+        "case_id": str(case.case_id),
+        "hash_sha256": ev.hash_sha256,
+        "chain_anchor": ev.chain_anchor,
+        "ipfs_cid": ev.ipfs_cid,
+        "onchain_verification": verification,
+    }
+
+
+
 # ── Export ────────────────────────────────────────────────────────────────────
 
 @app.get("/cases/{case_id}/export", tags=["export"])

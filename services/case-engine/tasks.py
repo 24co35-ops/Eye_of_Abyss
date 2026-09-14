@@ -1,8 +1,11 @@
-"""Celery task stubs for async anchoring and PDF export."""
+"""Celery tasks for async anchoring, convergence, and PDF export."""
 
+import asyncio
 import os
+import logging
 from celery import Celery
 
+logger = logging.getLogger("case_engine.tasks")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 celery_app = Celery("case_engine", broker=REDIS_URL, backend=REDIS_URL)
@@ -10,14 +13,31 @@ celery_app.conf.task_serializer = "json"
 
 
 @celery_app.task(name="tasks.anchor_evidence")
-def anchor_evidence_task(evidence_id: str, case_id: str):
+def anchor_evidence_task(evidence_id: str, case_id: str, evidence_data: dict = None):
     """
-    TODO: Wire anchoring.anchor_on_polygon() here.
-    Runs async from the /anchor endpoint so the HTTP response is immediate.
-    """
-    # ponytail: stub — log and return until web3 is wired
-    print(f"[anchor_evidence] evidence={evidence_id} case={case_id} — stub, not yet anchored")
-    return {"status": "stub", "evidence_id": evidence_id}
+    Executes anchoring flow for an evidence record:
+      1. Pin to Pinata -> IPFS CID
+      2. Compute SHA-256 hash
+      3. Submit to Polygon EvidenceRegistry contract
+      4. Returns anchoring receipt
+    try:
+        from anchoring.anchor import anchor_evidence, compute_evidence_hash
+    except ImportError:
+        from services.case_engine.anchoring.anchor import anchor_evidence, compute_evidence_hash
+
+    payload = evidence_data or {
+        "evidence_id": evidence_id,
+        "case_id": case_id,
+        "module_id": "case-engine",
+    }
+
+    try:
+        result = asyncio.run(anchor_evidence(payload))
+        logger.info(f"[anchor_evidence] Anchored evidence {evidence_id}: tx={result.get('tx_hash')}")
+        return result
+    except Exception as e:
+        logger.error(f"[anchor_evidence] Failed to anchor evidence {evidence_id}: {e}")
+        return {"error": str(e), "evidence_id": evidence_id, "case_id": case_id}
 
 
 @celery_app.task(name="tasks.generate_pdf")
@@ -26,7 +46,7 @@ def generate_pdf_task(case_id: str):
     TODO: Use reportlab to render case file PDF and upload to Supabase Storage.
     Target: < 10s generation time (design-doc acceptance criteria).
     """
-    print(f"[generate_pdf] case={case_id} — stub, PDF not yet generated")
+    logger.info(f"[generate_pdf] case={case_id} — stub, PDF not yet generated")
     return {"status": "stub", "case_id": case_id}
 
 
@@ -40,5 +60,5 @@ def compute_convergence_task(case_id: str):
       4. Check Neo4j for actor graph links
       5. Write CrossModuleSignals back to cases table
     """
-    print(f"[compute_convergence] case={case_id} — stub")
+    logger.info(f"[compute_convergence] case={case_id} — stub")
     return {"status": "stub", "case_id": case_id}
