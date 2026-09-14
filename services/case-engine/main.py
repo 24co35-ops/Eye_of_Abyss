@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io
+import json
 import os
 import sys
 import uuid
@@ -10,6 +12,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,7 +40,9 @@ except ImportError:
 
 from anchoring import anchor_on_polygon, compute_hash, pin_to_ipfs
 from auth import router as auth_router, users_router
-from db import Case, Evidence, create_tables, get_db
+from convergence import compute_and_save as compute_convergence_inline
+from db import AuditLog, Case, Evidence, create_tables, get_db
+from pdf_export import generate as generate_pdf, generate_freeze_json
 from state_machine import InvalidTransition, auto_advance, transition
 from tasks import anchor_evidence_task, compute_convergence_task, generate_pdf_task
 
@@ -170,12 +175,16 @@ async def submit_evidence(
         case.updated_at = datetime.utcnow()
         _append_audit(case, user.sub, f"AUTO_ADVANCE -> {next_status}")
 
-    # Trigger convergence computation if 2+ modules submitted
+    # Trigger convergence inline when 2+ modules have submitted
     if len(set(submitted_modules)) >= 2:
         try:
-            compute_convergence_task.delay(str(case.case_id))
+            import asyncio
+            asyncio.create_task(compute_convergence_inline(str(case.case_id)))
         except Exception:
-            pass  # Celery optional in local dev
+            try:
+                compute_convergence_task.delay(str(case.case_id))
+            except Exception:
+                pass  # Celery optional in local dev
 
     await db.commit()
     return {
@@ -201,15 +210,13 @@ async def get_convergence(case_id: str, db: DB, user: CurrentUser):
 async def anchor_case(
     case_id: str,
     db: DB,
-    user: Annotated[TokenPayload, Depends(require_role("SUPERVISOR", "ADMIN"))],
+    user: Annotated[TokenPayload, Depends(require_role(Role.SUPERVISOR, Role.OWNER))],
 ):
-    """SUPERVISOR+ only — triggers Polygon anchoring for all unanchored evidence."""
+    """SUPERVISOR+ — triggers Polygon anchoring for all unanchored evidence."""
     case = await _get_case_or_404(case_id, db)
 
-    try:
-        transition(case.status, "READY_TO_ANCHOR")
-    except InvalidTransition as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    if case.status not in ("READY_TO_ANCHOR", "CONVERGENCE_COMPUTED", "EVIDENCE_SUBMITTED"):
+        raise HTTPException(status_code=400, detail=f"Cannot anchor from status '{case.status}'. Approve first.")
 
     unanchored = (await db.execute(
         select(Evidence).where(
@@ -221,22 +228,28 @@ async def anchor_case(
     if not unanchored:
         raise HTTPException(status_code=400, detail="No unanchored evidence found")
 
-    # Queue Celery tasks / stubs
+    # Demo mode: sync anchor one item directly
+    demo_mode = os.getenv("DEMO_MODE", "0") == "1"
+    queued = 0
     for ev in unanchored:
         try:
-            anchor_evidence_task.delay(str(ev.evidence_id), case_id)
+            if demo_mode:
+                anchor_evidence_task(str(ev.evidence_id), case_id)
+            else:
+                anchor_evidence_task.delay(str(ev.evidence_id), case_id)
+            queued += 1
         except Exception:
             pass
 
     case.status = "READY_TO_ANCHOR"
     case.updated_at = datetime.utcnow()
-    _append_audit(case, user.sub, "ANCHOR_TRIGGERED")
+    await _audit(db, case, user.sub, "ANCHOR_TRIGGERED", {"evidence_queued": queued})
     await db.commit()
 
     return {
         "case_id": case_id,
         "status": case.status,
-        "evidence_queued": len(unanchored),
+        "evidence_queued": queued,
         "note": "Anchoring tasks queued — poll /cases/{id} for ANCHORED status",
     }
 
@@ -272,23 +285,130 @@ async def verify_evidence(case_id: str, evidence_id: str, db: DB, user: CurrentU
 
 
 
-# ── Export ────────────────────────────────────────────────────────────────────
+# ── Supervisor approval ───────────────────────────────────────────────────────
+
+@app.post("/cases/{case_id}/approve", tags=["cases"])
+async def approve_case(
+    case_id: str,
+    db: DB,
+    user: Annotated[TokenPayload, Depends(require_role(Role.SUPERVISOR, Role.OWNER))],
+):
+    """SUPERVISOR/OWNER approves case for anchoring → transitions to READY_TO_ANCHOR."""
+    case = await _get_case_or_404(case_id, db)
+    allowed = {"ACTIVE", "EVIDENCE_SUBMITTED", "CONVERGENCE_COMPUTED"}
+    if case.status not in allowed:
+        raise HTTPException(status_code=400, detail=f"Cannot approve from status '{case.status}'")
+    case.status = "READY_TO_ANCHOR"
+    case.updated_at = datetime.utcnow()
+    await _audit(db, case, user.sub, "APPROVED_FOR_ANCHORING")
+    await db.commit()
+    return {"case_id": case_id, "status": case.status}
+
+
+# ── Export (real PDF, streaming) ──────────────────────────────────────────────
 
 @app.get("/cases/{case_id}/export", tags=["export"])
-async def export_case(case_id: str, db: DB, user: CurrentUser):
-    """Triggers async PDF generation. Returns task reference."""
-    await _get_case_or_404(case_id, db)
-    task_id = "task-local-sync"
-    try:
-        task = generate_pdf_task.delay(case_id)
-        task_id = task.id
-    except Exception:
-        pass
-    return {
-        "case_id": case_id,
-        "task_id": task_id,
-        "note": "PDF generation queued — poll task status endpoint",
+async def export_case(
+    case_id: str,
+    db: DB,
+    user: CurrentUser,
+):
+    """Return PDF bytes directly as a streaming response."""
+    case = await _get_case_or_404(case_id, db)
+    rows = (await db.execute(select(Evidence).where(Evidence.case_id == case.case_id))).scalars().all()
+    audit_rows = (await db.execute(
+        select(AuditLog).where(AuditLog.case_id == case.case_id)
+    )).scalars().all()
+
+    case_dict = {
+        "case_id":          str(case.case_id),
+        "status":           case.status,
+        "complainant_type": case.complainant_type,
+        "reported_loss":    case.reported_loss,
+        "created_at":       case.created_at.isoformat() if case.created_at else None,
+        "updated_at":       case.updated_at.isoformat() if case.updated_at else None,
+        "anchor_tx_hashes": case.anchor_tx_hashes or [],
+        "convergence":      case.convergence or {},
     }
+    ev_list = [
+        {"module_id": r.module_id, "verdict": r.verdict, "confidence": r.confidence,
+         "confidence_tier": r.confidence_tier, "hash_sha256": r.hash_sha256,
+         "chain_anchor": r.chain_anchor, "ipfs_cid": r.ipfs_cid, "payload": r.payload or {}}
+        for r in rows
+    ]
+    audit_log = [
+        {"ts": a.timestamp.isoformat(), "actor": a.actor, "action": a.action}
+        for a in audit_rows
+    ] + (case.audit_log or [])
+
+    pdf_bytes = generate_pdf(case_dict, ev_list, audit_log)
+    await _audit(db, case, user.sub, "EXPORTED_PDF")
+    await db.commit()
+
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="case_{case_id[:8]}.pdf"'},
+    )
+
+
+# ── Freeze request ────────────────────────────────────────────────────────────
+
+@app.get("/cases/{case_id}/freeze-request", tags=["export"])
+async def freeze_request(
+    case_id: str,
+    fmt: str = "json",
+    db: DB = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Return freeze-request draft as JSON or PDF."""
+    case = await _get_case_or_404(case_id, db)
+    rows = (await db.execute(select(Evidence).where(Evidence.case_id == case.case_id))).scalars().all()
+    audit_rows = (await db.execute(select(AuditLog).where(AuditLog.case_id == case.case_id))).scalars().all()
+
+    case_dict = {
+        "case_id": str(case.case_id), "status": case.status,
+        "complainant_type": case.complainant_type, "reported_loss": case.reported_loss,
+        "created_at": case.created_at.isoformat() if case.created_at else None,
+        "updated_at": case.updated_at.isoformat() if case.updated_at else None,
+        "anchor_tx_hashes": case.anchor_tx_hashes or [], "convergence": case.convergence or {},
+    }
+    ev_list = [
+        {"module_id": r.module_id, "verdict": r.verdict, "confidence": r.confidence,
+         "confidence_tier": r.confidence_tier, "hash_sha256": r.hash_sha256,
+         "chain_anchor": r.chain_anchor, "ipfs_cid": r.ipfs_cid, "payload": r.payload or {}}
+        for r in rows
+    ]
+
+    await _audit(db, case, user.sub, "FREEZE_REQUEST_GENERATED", {"fmt": fmt})
+    await db.commit()
+
+    if fmt == "pdf":
+        audit_log = [{"ts": a.timestamp.isoformat(), "actor": a.actor, "action": a.action} for a in audit_rows]
+        pdf_bytes = generate_pdf(case_dict, ev_list, audit_log, freeze_mode=True)
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="freeze_request_{case_id[:8]}.pdf"'},
+        )
+
+    return generate_freeze_json(case_dict, ev_list)
+
+
+# ── Audit log endpoint ────────────────────────────────────────────────────────
+
+@app.get("/cases/{case_id}/audit", tags=["cases"])
+async def get_audit_log(case_id: str, db: DB, user: CurrentUser):
+    """Return full audit trail from AuditLog table."""
+    case = await _get_case_or_404(case_id, db)
+    rows = (await db.execute(
+        select(AuditLog).where(AuditLog.case_id == case.case_id)
+    )).scalars().all()
+    return [
+        {"log_id": str(r.log_id), "actor": r.actor, "action": r.action,
+         "detail": r.detail, "timestamp": r.timestamp.isoformat()}
+        for r in rows
+    ]
 
 
 # ── Manual state transition (supervisor override) ─────────────────────────────
@@ -346,6 +466,18 @@ def _append_audit(case: Case, actor: str, action: str):
     log = list(case.audit_log or [])
     log.append({"ts": datetime.utcnow().isoformat(), "actor": actor, "action": action})
     case.audit_log = log
+
+
+async def _audit(db: AsyncSession, case: Case, actor: str, action: str, detail: dict = None):
+    """Write to both the JSON column and the AuditLog table."""
+    _append_audit(case, actor, action)
+    db.add(AuditLog(
+        case_id=case.case_id,
+        actor=actor,
+        action=action,
+        detail=detail or {},
+        timestamp=datetime.utcnow(),
+    ))
 
 
 if __name__ == "__main__":
