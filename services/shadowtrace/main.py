@@ -20,9 +20,10 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 # Ensure shared package and local modules are importable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -91,7 +92,12 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
+
+# Auth — JWT required on analysis endpoints
+from auth import Role, TokenPayload, get_current_user, require_role  # noqa: E402
+CurrentUser = Annotated[TokenPayload, Depends(get_current_user)]
 
 
 # ── Request / Response Schemas ────────────────────────────────────────────────

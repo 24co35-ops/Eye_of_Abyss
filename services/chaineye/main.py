@@ -23,9 +23,10 @@ from datetime import datetime, timezone
 from typing import Any, Literal, Optional
 from uuid import UUID, uuid4
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from typing import Annotated, Any, Literal, Optional
 
 # Setup path to import shared schemas and local modules
 _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -82,6 +83,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Auth — JWT required on analysis endpoints
+from auth import Role, TokenPayload, get_current_user, require_role  # noqa: E402
+CurrentUser = Annotated[TokenPayload, Depends(get_current_user)]
 
 # In-memory job and graph cache
 TRACE_JOBS: dict[str, dict[str, Any]] = {}

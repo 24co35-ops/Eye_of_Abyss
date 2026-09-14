@@ -21,9 +21,10 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Annotated
 
 # Shared package path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -62,7 +63,12 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,
 )
+
+# Auth — JWT required on analysis endpoints
+from auth import Role, TokenPayload, get_current_user, require_role  # noqa: E402
+CurrentUser = Annotated[TokenPayload, Depends(get_current_user)]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

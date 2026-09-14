@@ -39,6 +39,40 @@ services:
       timeout: 5s
       retries: 5
 
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Migrations + Seed (one-shot) ───────────────────────────────────────────
+  migrate:
+    build:
+      context: ../services/case-engine
+    environment:
+      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-changeme}@postgres:5432/eyeofabyss
+      PYTHONPATH: /shared:/app
+    volumes:
+      - ../shared:/shared:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "alembic -c alembic.ini upgrade head &&
+             python /app/../../scripts/seed.py || true"
+    restart: "no"
+
   # ── Backend Services ───────────────────────────────────────────────────────
   case-engine:
     build:
@@ -51,12 +85,16 @@ services:
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-changeme}
       REDIS_URL: redis://redis:6379
-      POLYGON_RPC_URL: ${POLYGON_RPC_URL}
-      PRIVATE_KEY: ${PRIVATE_KEY}
-      EVIDENCE_REGISTRY_ADDRESS: ${EVIDENCE_REGISTRY_ADDRESS}
-      PINATA_API_KEY: ${PINATA_API_KEY}
-      PINATA_SECRET_KEY: ${PINATA_SECRET_KEY}
+      POLYGON_RPC_URL: ${POLYGON_RPC_URL:-}
+      PRIVATE_KEY: ${PRIVATE_KEY:-}
+      EVIDENCE_REGISTRY_ADDRESS: ${EVIDENCE_REGISTRY_ADDRESS:-}
+      PINATA_API_KEY: ${PINATA_API_KEY:-}
+      PINATA_SECRET_KEY: ${PINATA_SECRET_KEY:-}
       JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       PYTHONPATH: /shared:/app
     volumes:
       - ../shared:/shared:ro
@@ -65,6 +103,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   case-engine-worker:
@@ -73,19 +113,19 @@ services:
     environment:
       DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-changeme}@postgres:5432/eyeofabyss
       REDIS_URL: redis://redis:6379
-      POLYGON_RPC_URL: ${POLYGON_RPC_URL}
-      PRIVATE_KEY: ${PRIVATE_KEY}
-      EVIDENCE_REGISTRY_ADDRESS: ${EVIDENCE_REGISTRY_ADDRESS}
-      PINATA_API_KEY: ${PINATA_API_KEY}
-      PINATA_SECRET_KEY: ${PINATA_SECRET_KEY}
+      POLYGON_RPC_URL: ${POLYGON_RPC_URL:-}
+      PRIVATE_KEY: ${PRIVATE_KEY:-}
+      EVIDENCE_REGISTRY_ADDRESS: ${EVIDENCE_REGISTRY_ADDRESS:-}
+      PINATA_API_KEY: ${PINATA_API_KEY:-}
+      PINATA_SECRET_KEY: ${PINATA_SECRET_KEY:-}
       PYTHONPATH: /shared:/app
     volumes:
       - ../shared:/shared:ro
     depends_on:
       redis:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     command: celery -A tasks.celery_app worker --loglevel=info
 
   voiceguard:
@@ -96,6 +136,10 @@ services:
     environment:
       DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-changeme}@postgres:5432/eyeofabyss
       REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       PYTHONPATH: /shared:/app
     volumes:
       - ../shared:/shared:ro
@@ -114,6 +158,10 @@ services:
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-changeme}
       REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       PYTHONPATH: /shared:/app
     volumes:
       - ../shared:/shared:ro
@@ -134,9 +182,13 @@ services:
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-changeme}
       REDIS_URL: redis://redis:6379
-      ALCHEMY_API_KEY: ${ALCHEMY_API_KEY}
-      ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY}
-      BLOCKSTREAM_API_KEY: ${BLOCKSTREAM_API_KEY}
+      ALCHEMY_API_KEY: ${ALCHEMY_API_KEY:-}
+      ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY:-}
+      BLOCKSTREAM_API_KEY: ${BLOCKSTREAM_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       PYTHONPATH: /shared:/app
     volumes:
       - ../shared:/shared:ro
@@ -177,3 +229,4 @@ services:
 volumes:
   postgres_data:
   neo4j_data:
+  minio_data:

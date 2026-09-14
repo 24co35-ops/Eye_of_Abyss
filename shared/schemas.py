@@ -116,3 +116,42 @@ class CaseResponse(BaseModel):
     convergence: Optional[CrossModuleSignals]
     anchor_tx_hashes: list[str]
     evidence_count: int
+
+
+# ── Auth request / response schemas ───────────────────────────────────────────
+
+class RegisterRequest(BaseModel):
+    email: str
+    password: str
+    role: str = "VIEWER"   # default; OWNER can promote later
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class WalletLoginRequest(BaseModel):
+    wallet_address: str   # 0x...
+    message: str          # challenge string shown to user
+    signature: str        # eth_sign result
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserResponse(BaseModel):
+    user_id: UUID
+    email: str
+    role: str
+    wallet_address: Optional[str]
+    is_active: bool
+    created_at: datetime
+
+
+class UpdateUserRequest(BaseModel):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+

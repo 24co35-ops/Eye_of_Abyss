@@ -36,17 +36,22 @@ except ImportError:
     )
 
 from anchoring import anchor_on_polygon, compute_hash, pin_to_ipfs
-from auth import Role, TokenPayload, create_access_token, get_current_user, require_role
+from auth import router as auth_router, users_router
 from db import Case, Evidence, create_tables, get_db
 from state_machine import InvalidTransition, auto_advance, transition
 from tasks import anchor_evidence_task, compute_convergence_task, generate_pdf_task
+
+# shared auth — re-export for route dependencies
+from shared.auth import Role, TokenPayload, get_current_user, require_role
 
 app = FastAPI(
     title="Case Engine",
     version="0.1.0",
     description="Investigation orchestrator — Eye of Abyss",
 )
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"], allow_credentials=True)
+app.include_router(auth_router)
+app.include_router(users_router)
 
 DB = Annotated[AsyncSession, Depends(get_db)]
 CurrentUser = Annotated[TokenPayload, Depends(get_current_user)]
@@ -65,26 +70,6 @@ def health():
     return {"status": "ok", "service": "case-engine"}
 
 
-# ── Auth Helper Endpoint (Dev/Demo) ──────────────────────────────────────────
-
-class TokenRequest(BaseModel):
-    officer_id: str
-    role: Role = "INVESTIGATOR"
-    unit: str = "Cybercrime Unit"
-
-
-@app.post("/auth/token", tags=["auth"])
-def generate_dev_token(body: TokenRequest):
-    """Generate a valid JWT token for testing/dev."""
-    token = create_access_token(sub=body.officer_id, role=body.role, unit=body.unit)
-    return {
-        "access_token": token,
-        "token_type": "bearer",
-        "officer_id": body.officer_id,
-        "role": body.role,
-        "unit": body.unit,
-    }
-
 
 # ── Cases ─────────────────────────────────────────────────────────────────────
 
@@ -92,7 +77,7 @@ def generate_dev_token(body: TokenRequest):
 async def create_case(
     body: CreateCaseRequest,
     db: DB,
-    user: CurrentUser,
+    user: Annotated[TokenPayload, Depends(require_role(Role.INVESTIGATOR, Role.SUPERVISOR, Role.OWNER))],
 ):
     case = Case(
         case_id=uuid.uuid4(),

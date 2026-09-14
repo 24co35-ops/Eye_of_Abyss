@@ -18,6 +18,10 @@ sys.path.insert(0, str(_ROOT / "services" / "case-engine"))
 
 from shared.schemas import Artifact, CaseFile, CrossModuleSignals, EvidenceObject
 
+# ── Owner account seeding ─────────────────────────────────────────────────────
+SEED_OWNER_EMAIL    = os.getenv("SEED_OWNER_EMAIL", "owner@eyeofabyss.local")
+SEED_OWNER_PASSWORD = os.getenv("SEED_OWNER_PASSWORD", "changeme123")
+
 # Exact cases from Stitch prompts (Prompts 1, 2, 3, 4, 5)
 SEED_CASES = [
     {
@@ -237,11 +241,29 @@ async def seed_database():
 
     # 2. Try DB seeding if PostgreSQL is available
     try:
-        from db import Case, Evidence, SessionLocal, create_tables
+        from db import Case, Evidence, SessionLocal, User, create_tables
         from sqlalchemy import select
+        from passlib.context import CryptContext
+
+        _pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
         await create_tables()
         async with SessionLocal() as db:
+            # Seed OWNER account (idempotent)
+            existing_owner = await db.scalar(select(User).where(User.email == SEED_OWNER_EMAIL))
+            if not existing_owner:
+                owner = User(
+                    email=SEED_OWNER_EMAIL,
+                    hashed_password=_pwd.hash(SEED_OWNER_PASSWORD),
+                    role="OWNER",
+                    is_active=True,
+                )
+                db.add(owner)
+                await db.commit()
+                print(f"  [+] OWNER account seeded: {SEED_OWNER_EMAIL}")
+            else:
+                print(f"  [=] OWNER account already exists: {SEED_OWNER_EMAIL}")
+
             for item in SEED_CASES:
                 uid = uuid.UUID(item["case_id"])
                 existing = (await db.execute(select(Case).where(Case.case_id == uid))).scalar_one_or_none()
@@ -283,7 +305,7 @@ async def seed_database():
         print(f"  [-] Database direct connection skipped ({exc}). Static cache ready.")
 
     print("=" * 60)
-    print("  Seed Complete -- 5 Canonical Cases Ready for SIH Demo")
+    print("  Seed Complete -- 5 Canonical Cases + OWNER account ready")
     print("=" * 60)
 
 

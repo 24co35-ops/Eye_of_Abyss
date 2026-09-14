@@ -1,0 +1,156 @@
+"""Shared auth module — used by all Eye of Abyss services.
+
+Roles: OWNER > SUPERVISOR > INVESTIGATOR > VIEWER
+"""
+
+from __future__ import annotations
+
+import os
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Annotated, Optional
+from uuid import UUID, uuid4
+
+from fastapi import Depends, HTTPException, Request, Response, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from pydantic import BaseModel
+from sqlalchemy import Boolean, Column, DateTime, String
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.orm import DeclarativeBase
+
+# ── Config ────────────────────────────────────────────────────────────────────
+
+JWT_SECRET         = os.getenv("JWT_SECRET", "dev-secret-change-in-production")
+JWT_REFRESH_SECRET = os.getenv("JWT_REFRESH_SECRET", JWT_SECRET + "-refresh")
+JWT_ALGORITHM      = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_EXPIRE_MIN  = 15
+REFRESH_EXPIRE_DAYS = 7
+REFRESH_COOKIE     = "refresh_token"
+
+pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+bearer  = HTTPBearer(auto_error=False)
+
+
+# ── Role ─────────────────────────────────────────────────────────────────────
+
+class Role(str, Enum):
+    OWNER        = "OWNER"
+    SUPERVISOR   = "SUPERVISOR"
+    INVESTIGATOR = "INVESTIGATOR"
+    VIEWER       = "VIEWER"
+
+# Role hierarchy — higher index = more privilege
+_RANK = {Role.VIEWER: 0, Role.INVESTIGATOR: 1, Role.SUPERVISOR: 2, Role.OWNER: 3}
+
+
+# ── SQLAlchemy User model (imported by db.py in case-engine) ─────────────────
+
+class AuthBase(DeclarativeBase):
+    """Separate declarative base so services that only need auth don't inherit case tables."""
+    pass
+
+
+class User(AuthBase):
+    __tablename__ = "users"
+
+    user_id         = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    email           = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=True)   # NULL for wallet-only users
+    role            = Column(String(20), nullable=False, default=Role.VIEWER.value)
+    wallet_address  = Column(String(42), unique=True, nullable=True)  # 0x... ETH address
+    is_active       = Column(Boolean, default=True, nullable=False)
+    created_at      = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# ── Token helpers ─────────────────────────────────────────────────────────────
+
+class TokenPayload(BaseModel):
+    sub: str        # user_id as string
+    role: str
+    email: str = ""
+    exp: Optional[int] = None
+
+
+def create_access_token(sub: str, role: str, email: str = "") -> str:
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_EXPIRE_MIN)
+    return jwt.encode(
+        {"sub": sub, "role": role, "email": email, "exp": expire},
+        JWT_SECRET, algorithm=JWT_ALGORITHM,
+    )
+
+
+def create_refresh_token(sub: str) -> str:
+    expire = datetime.utcnow() + timedelta(days=REFRESH_EXPIRE_DAYS)
+    return jwt.encode({"sub": sub, "exp": expire}, JWT_REFRESH_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def decode_access_token(token: str) -> TokenPayload:
+    try:
+        data = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return TokenPayload(**data)
+    except JWTError as e:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {e}")
+
+
+def decode_refresh_token(token: str) -> str:
+    """Returns sub (user_id) from a valid refresh token."""
+    try:
+        data = jwt.decode(token, JWT_REFRESH_SECRET, algorithms=[JWT_ALGORITHM])
+        return data["sub"]
+    except JWTError as e:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=f"Invalid refresh token: {e}")
+
+
+# ── Password helpers ──────────────────────────────────────────────────────────
+
+def hash_password(plain: str) -> str:
+    return pwd_ctx.hash(plain)
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_ctx.verify(plain, hashed)
+
+
+# ── MetaMask / wallet sig verify ──────────────────────────────────────────────
+
+def verify_wallet_sig(address: str, message: str, signature: str) -> bool:
+    """Return True if `signature` is a valid eth_sign over `message` by `address`."""
+    try:
+        from eth_account import Account
+        from eth_account.messages import encode_defunct
+        msg = encode_defunct(text=message)
+        recovered = Account.recover_message(msg, signature=signature)
+        return recovered.lower() == address.lower()
+    except Exception:
+        return False
+
+
+# ── FastAPI dependencies ───────────────────────────────────────────────────────
+
+def get_current_user(
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]
+) -> TokenPayload:
+    if creds is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Missing authorization token")
+    return decode_access_token(creds.credentials)
+
+
+def require_role(*roles: Role):
+    """Dependency factory: require one of the given roles (or higher rank)."""
+    min_rank = min(_RANK[r] for r in roles)
+
+    def _check(user: Annotated[TokenPayload, Depends(get_current_user)]) -> TokenPayload:
+        user_rank = _RANK.get(Role(user.role), -1)
+        if user_rank < min_rank:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail=f"Role '{user.role}' insufficient. Required: {[r.value for r in roles]}"
+            )
+        return user
+    return _check
+
+
+CurrentUser = Annotated[TokenPayload, Depends(get_current_user)]
