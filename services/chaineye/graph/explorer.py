@@ -1,28 +1,42 @@
 """
 Multi-chain transaction explorer.
-Fetches on-chain transaction history from Blockstream (Bitcoin) and Etherscan/Alchemy (EVM).
-Includes deterministic mock fallback for offline development, tests, and demo environments.
+Fetches on-chain transaction history from Blockstream (Bitcoin), Etherscan (EVM), and Alchemy (EVM).
+Includes TTL caching, concurrency rate-limiting, and deterministic mock fallback for offline development.
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import os
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Optional
 
 import httpx
 
-from services.chaineye.attribution.vasp_registry import get_vasp_attribution
+try:
+    from services.chaineye.attribution.vasp_registry import get_vasp_attribution
+except ImportError:
+    from attribution.vasp_registry import get_vasp_attribution
 
 logger = logging.getLogger("chaineye.explorer")
 
 ETHERSCAN_API_KEY = os.getenv("ETHERSCAN_API_KEY", "")
 ALCHEMY_API_KEY   = os.getenv("ALCHEMY_API_KEY", "")
+BLOCKSTREAM_API_KEY = os.getenv("BLOCKSTREAM_API_KEY", "")
+
 BLOCKSTREAM_BASE  = "https://blockstream.info/api"
 ETHERSCAN_BASE    = "https://api.etherscan.io/api"
+ALCHEMY_ETH_BASE  = f"https://eth-mainnet.g.alchemy.com/v2/{ALCHEMY_API_KEY}" if ALCHEMY_API_KEY else ""
+ALCHEMY_POLYGON_BASE = f"https://polygon-mainnet.g.alchemy.com/v2/{ALCHEMY_API_KEY}" if ALCHEMY_API_KEY else ""
+
+# ── In-memory TTL Cache (5 minutes) & Rate Limiting ──────────────────────────
+_CACHE: dict[str, tuple[float, list[TransactionRecord]]] = {}
+_CACHE_TTL = 300  # 5 minutes
+_SEMAPHORE = asyncio.Semaphore(10)  # Max 10 concurrent requests to protect rate limits
 
 
 @dataclass
@@ -59,35 +73,82 @@ async def fetch_address_transactions(
 ) -> list[TransactionRecord]:
     """
     Fetches transaction history for an address across multi-hop paths.
-    Falls back to deterministic realistic mock transactions if APIs are unreachable or offline.
+    Uses multi-hop BFS with TTL caching, rate limiting, and graceful fallback.
     """
     target_chain = chain or detect_chain(address)
+    cache_key = f"{address}_{target_chain}_{depth}_{max_tx}"
+
+    # 1. Check TTL cache
+    now_ts = time.time()
+    if cache_key in _CACHE:
+        cached_ts, cached_txs = _CACHE[cache_key]
+        if now_ts - cached_ts < _CACHE_TTL:
+            logger.info("Serving transaction trace for %s from cache (%d txs)", address, len(cached_txs))
+            return cached_txs
 
     client = http_client or httpx.AsyncClient(timeout=15.0)
+    records: list[TransactionRecord] = []
+
     try:
-        if target_chain == "bitcoin":
-            txs = await _fetch_blockstream_btc(address, max_tx, client)
-            if txs:
-                return txs
-        elif target_chain in ("ethereum", "polygon") and ETHERSCAN_API_KEY:
-            txs = await _fetch_etherscan_evm(address, target_chain, max_tx, client)
-            if txs:
-                return txs
+        async with _SEMAPHORE:
+            # Multi-hop BFS expansion
+            visited_addresses = set()
+            queue = [(address.strip().lower(), 0)]
+            
+            while queue and len(visited_addresses) < (depth * 4):
+                current_addr, current_hop = queue.pop(0)
+                if current_addr in visited_addresses or current_hop >= depth:
+                    continue
+                visited_addresses.add(current_addr)
+
+                hop_txs: list[TransactionRecord] = []
+                if target_chain == "bitcoin":
+                    hop_txs = await _fetch_blockstream_btc(current_addr, max_tx=max_tx // (current_hop + 1), client=client)
+                elif target_chain in ("ethereum", "polygon"):
+                    # Try Alchemy first if key is configured, else Etherscan
+                    if ALCHEMY_API_KEY:
+                        hop_txs = await _fetch_alchemy_evm(current_addr, target_chain, max_tx=max_tx // (current_hop + 1), client=client)
+                    if not hop_txs and ETHERSCAN_API_KEY:
+                        hop_txs = await _fetch_etherscan_evm(current_addr, target_chain, max_tx=max_tx // (current_hop + 1), client=client)
+
+                for tx in hop_txs:
+                    records.append(tx)
+                    # Enqueue next hop destinations
+                    next_addr = tx.to_address.lower() if tx.from_address.lower() == current_addr else tx.from_address.lower()
+                    if next_addr not in visited_addresses and current_hop + 1 < depth:
+                        queue.append((next_addr, current_hop + 1))
+
+            if records:
+                # Deduplicate by tx_hash + to_address
+                seen = set()
+                deduped = []
+                for r in records:
+                    k = (r.tx_hash, r.to_address)
+                    if k not in seen:
+                        seen.add(k)
+                        deduped.append(r)
+                _CACHE[cache_key] = (now_ts, deduped)
+                return deduped
+
     except Exception as e:
         logger.warning(f"Live blockchain API error for {address} on {target_chain}: {e}. Falling back to simulation.")
     finally:
         if http_client is None:
             await client.aclose()
 
-    # Deterministic synthetic multi-hop trace generation
-    return generate_mock_trace_flow(address, target_chain, depth=depth)
+    # Deterministic synthetic multi-hop trace generation fallback
+    mock_txs = generate_mock_trace_flow(address, target_chain, depth=depth)
+    _CACHE[cache_key] = (now_ts, mock_txs)
+    return mock_txs
 
 
 async def _fetch_blockstream_btc(
     address: str, max_tx: int, client: httpx.AsyncClient
 ) -> list[TransactionRecord]:
+    """Fetch Bitcoin transactions from Blockstream.info API."""
     url = f"{BLOCKSTREAM_BASE}/address/{address}/txs"
-    resp = await client.get(url)
+    headers = {"Authorization": f"Bearer {BLOCKSTREAM_API_KEY}"} if BLOCKSTREAM_API_KEY else {}
+    resp = await client.get(url, headers=headers)
     if resp.status_code != 200:
         return []
 
@@ -137,6 +198,7 @@ async def _fetch_blockstream_btc(
 async def _fetch_etherscan_evm(
     address: str, chain: str, max_tx: int, client: httpx.AsyncClient
 ) -> list[TransactionRecord]:
+    """Fetch EVM transactions from Etherscan API."""
     url = f"{ETHERSCAN_BASE}?module=account&action=txlist&address={address}&startblock=0&endblock=99999999&page=1&offset={max_tx}&sort=desc&apikey={ETHERSCAN_API_KEY}"
     resp = await client.get(url)
     if resp.status_code != 200:
@@ -147,7 +209,7 @@ async def _fetch_etherscan_evm(
         return []
 
     records: list[TransactionRecord] = []
-    eth_price_usd = 3500.0
+    eth_price_usd = 3500.0 if chain == "ethereum" else 1.0
 
     for item in data["result"]:
         tx_hash = item.get("hash", "")
@@ -176,6 +238,58 @@ async def _fetch_etherscan_evm(
     return records
 
 
+async def _fetch_alchemy_evm(
+    address: str, chain: str, max_tx: int, client: httpx.AsyncClient
+) -> list[TransactionRecord]:
+    """Fetch EVM asset transfers from Alchemy JSON-RPC API."""
+    endpoint = ALCHEMY_ETH_BASE if chain == "ethereum" else ALCHEMY_POLYGON_BASE
+    if not endpoint:
+        return []
+
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "alchemy_getAssetTransfers",
+        "params": [
+            {
+                "fromBlock": "0x0",
+                "toBlock": "latest",
+                "fromAddress": address,
+                "category": ["external", "erc20"],
+                "maxCount": f"0x{max_tx:x}",
+                "order": "desc",
+            }
+        ],
+    }
+
+    resp = await client.post(endpoint, json=payload)
+    if resp.status_code != 200:
+        return []
+
+    res_data = resp.json().get("result", {}).get("transfers", [])
+    records: list[TransactionRecord] = []
+    unit_price = 3500.0 if chain == "ethereum" else 1.0
+
+    for t in res_data:
+        val = float(t.get("value") or 0.0)
+        raw_token = t.get("asset") or ("ETH" if chain == "ethereum" else "MATIC")
+        records.append(
+            TransactionRecord(
+                tx_hash=t.get("hash", ""),
+                from_address=t.get("from", "").lower(),
+                to_address=(t.get("to") or "").lower(),
+                amount=val,
+                amount_usd=val * unit_price,
+                token=raw_token,
+                timestamp=datetime.now(timezone.utc),
+                chain=chain,
+                block_number=int(t.get("blockNum", "0x0"), 16),
+            )
+        )
+
+    return records
+
+
 def generate_mock_trace_flow(root_address: str, chain: str = "ethereum", depth: int = 3) -> list[TransactionRecord]:
     """
     Generates deterministic, realistic multi-hop criminal transaction flows:
@@ -196,6 +310,7 @@ def generate_mock_trace_flow(root_address: str, chain: str = "ethereum", depth: 
         destinations = [
             "bc1qa5wkgaew2dkv56kfvj49j0av5nml45x9ek9hz6",  # FixedFloat
             "1NDyJtNTjmwk5xPNhjgAMu4HDHigtobu1s",          # Binance BTC
+            "34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo",          # Binance Cold
         ]
     else:
         destinations = [

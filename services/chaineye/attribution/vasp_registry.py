@@ -79,6 +79,30 @@ KNOWN_ENTITIES: dict[str, EntityInfo] = {
         is_vasp=True,
         description="Gate.io exchange aggregation wallet",
     ),
+    "0x6cc5f688a315f3dc28a7781717a9a798a59fda7b": EntityInfo(
+        name="OKX Hot Wallet",
+        category="exchange",
+        risk_score=0.20,
+        jurisdiction="Seychelles / Global",
+        is_vasp=True,
+        description="OKX primary liquidity settlement wallet",
+    ),
+    "0xd6216fc19db775df9774a6e33526131da7d19a2c": EntityInfo(
+        name="KuCoin Hot Wallet 6",
+        category="exchange",
+        risk_score=0.25,
+        jurisdiction="Seychelles",
+        is_vasp=True,
+        description="KuCoin exchange hot withdrawal gateway",
+    ),
+    "0xf977814e90da44bfa03b6295a0616a897441acec": EntityInfo(
+        name="Binance Hot Wallet 20",
+        category="exchange",
+        risk_score=0.15,
+        jurisdiction="Global",
+        is_vasp=True,
+        description="Binance 8 primary deposit bridge",
+    ),
     # ── Instant Non-KYC Exchangers (High Risk / Frequent Cashout Targets) ────
     "0x4c9edd5852cd905f086c759e8383e09bff1e68b3": EntityInfo(
         name="FixedFloat Hot Wallet",
@@ -95,6 +119,14 @@ KNOWN_ENTITIES: dict[str, EntityInfo] = {
         jurisdiction="Belize / Low-KYC",
         is_vasp=True,
         description="Non-custodial instant swap platform frequently targeted in peeling chains",
+    ),
+    "0xc6cde7c39eb2f0f0095f41570af89efc2c1ea828": EntityInfo(
+        name="SideShift.ai Hot Wallet",
+        category="exchange",
+        risk_score=0.75,
+        jurisdiction="Offshore / No-KYC",
+        is_vasp=True,
+        description="Automated instant coin shifting service",
     ),
     # ── Privacy Protocols / Mixers (Sanctioned / High Risk) ──────────────────
     "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b": EntityInfo(
@@ -120,6 +152,22 @@ KNOWN_ENTITIES: dict[str, EntityInfo] = {
         jurisdiction="OFAC Sanctioned / Decentralized",
         is_vasp=False,
         description="Tornado Cash 1 ETH anonymity pool",
+    ),
+    "0x910cbd523d972eb0a6f4cae4618ad62622b39dbf": EntityInfo(
+        name="Tornado.Cash: 10 ETH Pool",
+        category="mixer",
+        risk_score=0.98,
+        jurisdiction="OFAC Sanctioned / Decentralized",
+        is_vasp=False,
+        description="Tornado Cash 10 ETH anonymity pool",
+    ),
+    "0xfa7093cdd9ee6932b4eb2c9e1cde7ce00b1fa4b9": EntityInfo(
+        name="Railgun Privacy Contract",
+        category="mixer",
+        risk_score=0.88,
+        jurisdiction="Decentralized / Smart Contract",
+        is_vasp=False,
+        description="zk-SNARK privacy system on Ethereum",
     ),
     # ── Bitcoin Addresses (Curated) ──────────────────────────────────────────
     "1NDyJtNTjmwk5xPNhjgAMu4HDHigtobu1s": EntityInfo(
@@ -154,16 +202,51 @@ KNOWN_ENTITIES: dict[str, EntityInfo] = {
         is_vasp=True,
         description="Bitfinex cold storage wallet",
     ),
+    "bc1qs550whvhw2r7g7v3t5x9q6v72e88a0h26j7tq7": EntityInfo(
+        name="Wasabi CoinJoin Coordinator",
+        category="mixer",
+        risk_score=0.92,
+        jurisdiction="Decentralized / P2P",
+        is_vasp=False,
+        description="Wasabi Wallet 2.0 WabiSabi CoinJoin pool",
+    ),
 }
 
 # Prefix and heuristic lookup patterns
 KNOWN_PATTERNS = [
     ("tornado", EntityInfo("Tornado.Cash Contract", "mixer", 0.98, "OFAC Sanctioned", False, "Mixer contract")),
+    ("wasabi", EntityInfo("Wasabi CoinJoin Pool", "mixer", 0.92, "Decentralized", False, "UTXO CoinJoin")),
     ("binance", EntityInfo("Binance Associated Address", "exchange", 0.15, "Global", True, "Binance infrastructure")),
     ("fixedfloat", EntityInfo("FixedFloat Associated Address", "exchange", 0.78, "Offshore", True, "Instant exchanger")),
     ("changenow", EntityInfo("ChangeNOW Associated Address", "exchange", 0.72, "Offshore", True, "Instant exchanger")),
     ("coinbase", EntityInfo("Coinbase Associated Address", "exchange", 0.05, "USA", True, "Coinbase infrastructure")),
+    ("kraken", EntityInfo("Kraken Associated Address", "exchange", 0.10, "USA", True, "Kraken infrastructure")),
+    ("okx", EntityInfo("OKX Associated Address", "exchange", 0.20, "Global", True, "OKX infrastructure")),
 ]
+
+
+def load_custom_vasp_directory(file_path: str) -> int:
+    """Load and register custom labeled address mapping from a JSON file."""
+    import json, os
+    if not os.path.exists(file_path):
+        return 0
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        count = 0
+        for addr, item in data.items():
+            KNOWN_ENTITIES[addr.strip().lower()] = EntityInfo(
+                name=item.get("name", "Custom Entity"),
+                category=item.get("category", "exchange"),
+                risk_score=float(item.get("risk_score", 0.5)),
+                jurisdiction=item.get("jurisdiction", "Unspecified"),
+                is_vasp=bool(item.get("is_vasp", True)),
+                description=item.get("description", "Custom imported entity"),
+            )
+            count += 1
+        return count
+    except Exception:
+        return 0
 
 
 def get_vasp_attribution(address: str) -> Optional[EntityInfo]:

@@ -302,3 +302,41 @@ def test_endpoint_graph(client):
     assert "elements" in data
     assert "nodes" in data["elements"]
     assert "edges" in data["elements"]
+
+
+def test_endpoint_graph_export(client):
+    target = "0x71C83638379185a61142b19127765F14f0D6498B"
+    res_json = client.get(f"/graph/{target}/export?format=json")
+    assert res_json.status_code == 200
+    assert "elements" in res_json.json()
+
+    res_xml = client.get(f"/graph/{target}/export?format=graphml")
+    assert res_xml.status_code == 200
+    assert "graphml" in res_xml.text
+
+
+def test_endpoint_predict_train(client):
+    samples = [
+        {
+            "inflow_amount_usd": 150000.0,
+            "complaint_lag_hours": 2.0,
+            "dormancy_hours": 6.0,
+            "mixer_used_flag": 1.0,
+            "peeling_hop_count": 4.0,
+            "wallet_age_days": 2.0,
+            "urgency_label": "CRITICAL",
+        },
+        {
+            "inflow_amount_usd": 5000.0,
+            "complaint_lag_hours": 72.0,
+            "dormancy_hours": 120.0,
+            "mixer_used_flag": 0.0,
+            "peeling_hop_count": 1.0,
+            "wallet_age_days": 180.0,
+            "urgency_label": "MEDIUM",
+        },
+    ]
+    res = client.post("/predict/train", json={"samples": samples})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] in ("trained", "skipped")

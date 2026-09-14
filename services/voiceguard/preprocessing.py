@@ -27,10 +27,40 @@ N_MFCC = 40
 
 
 def load_audio(data: bytes, filename: str = "") -> np.ndarray:
-    """Load audio bytes → mono float32 @ 16 kHz."""
+    """Load audio bytes (WAV, MP3, FLAC, M4A, OGG) → mono float32 @ 16 kHz."""
     buf = io.BytesIO(data)
-    waveform, sr = librosa.load(buf, sr=SAMPLE_RATE, mono=True)
-    return waveform
+    
+    # 1. Primary: librosa.load
+    try:
+        waveform, _ = librosa.load(buf, sr=SAMPLE_RATE, mono=True)
+        return waveform.astype(np.float32)
+    except Exception:
+        buf.seek(0)
+
+    # 2. Secondary: soundfile
+    try:
+        import soundfile as sf
+        audio_data, sr = sf.read(buf)
+        if audio_data.ndim > 1:
+            audio_data = audio_data.mean(axis=1)
+        if sr != SAMPLE_RATE:
+            audio_data = librosa.resample(audio_data, orig_sr=sr, target_sr=SAMPLE_RATE)
+        return audio_data.astype(np.float32)
+    except Exception:
+        buf.seek(0)
+
+    # 3. Tertiary: pydub for M4A / MP3 / complex containers
+    try:
+        from pydub import AudioSegment
+        ext = filename.split(".")[-1].lower() if "." in filename else "mp3"
+        seg = AudioSegment.from_file(buf, format=ext)
+        seg = seg.set_frame_rate(SAMPLE_RATE).set_channels(1)
+        samples = np.array(seg.get_array_of_samples(), dtype=np.float32)
+        max_val = float(1 << (seg.sample_width * 8 - 1))
+        return samples / max_val
+    except Exception as exc:
+        # ponytail: standard fallback if all decoders fail
+        raise ValueError(f"Unable to decode audio file '{filename}': {exc}") from exc
 
 
 def normalize(waveform: np.ndarray) -> np.ndarray:

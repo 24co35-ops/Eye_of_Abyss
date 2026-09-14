@@ -353,3 +353,37 @@ def test_endpoint_graph_export_graphml(client: TestClient):
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("application/xml")
     assert "<graphml" in resp.text
+
+
+def test_endpoint_add_actor_sample(client: TestClient):
+    # Create actor first
+    create_payload = {
+        "archetype": "darknet_vendor",
+        "handles": ["@silk_vendor_10"],
+        "platforms": ["dread"],
+        "timezone": "UTC+1",
+    }
+    post_resp = client.post("/actors", json=create_payload)
+    assert post_resp.status_code == 200
+    actor_id = post_resp.json()["actor_id"]
+
+    # Add new text sample
+    sample_resp = client.post(
+        f"/actors/{actor_id}/samples",
+        json={"text": "New stealth drop ready, PGP key signed in dread escrow thread."}
+    )
+    assert sample_resp.status_code == 200
+    data = sample_resp.json()
+    assert data["status"] == "sample_indexed"
+    assert data["actor_id"] == actor_id
+
+
+def test_endpoint_cross_signals(client: TestClient):
+    resp = client.get("/cross-signals/EOA-2026-0035")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["case_id"] == "EOA-2026-0035"
+    assert "signal_detected" in data
+    assert "activity_overlap_score" in data
+    assert "timezone_forum" in data
+    assert "timezone_wallet" in data

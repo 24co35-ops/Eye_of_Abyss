@@ -41,7 +41,7 @@ from shared.schemas import Artifact, EvidenceObject, ModuleEvidence
 try:
     from services.chaineye.attribution.vasp_registry import get_risk_score, get_vasp_attribution
     from services.chaineye.gnn.inference import gnn_service
-    from services.chaineye.graph.builder import build_transaction_graph, export_cytoscape_json
+    from services.chaineye.graph.builder import build_transaction_graph, export_cytoscape_json, export_graphml_str
     from services.chaineye.graph.clustering import detect_peeling_chains
     from services.chaineye.graph.explorer import (
         TransactionRecord,
@@ -55,7 +55,7 @@ try:
 except ImportError:
     from attribution.vasp_registry import get_risk_score, get_vasp_attribution
     from gnn.inference import gnn_service
-    from graph.builder import build_transaction_graph, export_cytoscape_json
+    from graph.builder import build_transaction_graph, export_cytoscape_json, export_graphml_str
     from graph.clustering import detect_peeling_chains
     from graph.explorer import (
         TransactionRecord,
@@ -356,6 +356,17 @@ async def predict_withdrawal_endpoint(req: PredictWithdrawalRequest):
     }
 
 
+class TrainPredictorRequest(BaseModel):
+    samples: list[dict[str, Any]] = Field(..., description="List of labeled training samples")
+
+
+@app.post("/predict/train", tags=["forensics"])
+async def train_withdrawal_predictor(req: TrainPredictorRequest):
+    """Retrain the withdrawal prediction model with new complaint and cashout data."""
+    res = withdrawal_predictor.train(req.samples)
+    return res
+
+
 @app.get("/graph/{wallet_id}", tags=["forensics"])
 async def get_graph(wallet_id: str):
     """Retrieves Cytoscape.js transaction graph for a wallet or job ID."""
@@ -370,6 +381,25 @@ async def get_graph(wallet_id: str):
     graph_json = export_cytoscape_json(G, clusters, clean_id)
     GRAPH_CACHE[clean_id] = graph_json
     return graph_json
+
+
+@app.get("/graph/{wallet_id}/export", tags=["forensics"])
+async def export_graph(
+    wallet_id: str,
+    format: Literal["json", "graphml", "cytoscape"] = Query("json", description="Export format"),
+):
+    """Exports transaction graph as Cytoscape JSON or GraphML XML."""
+    clean_id = wallet_id.strip()
+    chain = detect_chain(clean_id)
+    txs = await fetch_address_transactions(clean_id, chain=chain, depth=3)
+    G, clusters = build_transaction_graph(clean_id, txs)
+
+    if format == "graphml":
+        from fastapi import Response
+        xml_data = export_graphml_str(G)
+        return Response(content=xml_data, media_type="application/xml")
+
+    return export_cytoscape_json(G, clusters, clean_id)
 
 
 if __name__ == "__main__":

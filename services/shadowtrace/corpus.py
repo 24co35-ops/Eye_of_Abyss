@@ -15,6 +15,8 @@ import random
 import uuid
 from typing import Dict, List, Optional
 
+import numpy as np
+
 from shared.schemas import CriminalActorProfile
 from stylometry.features import extract_fingerprint, fit_tfidf
 from stylometry.vectorstore import upsert_actor
@@ -26,31 +28,48 @@ logger = logging.getLogger(__name__)
 _actor_profiles: Dict[str, CriminalActorProfile] = {}
 
 # Archetype sample texts
+# Rich archetype and public PAN@CLEF / Darknet text corpus
 ARCHETYPE_TEXT_CORPUS = {
     "investment_fraudster": [
         "Exclusive VIP investment opportunity! Guaranteed 25% weekly ROI via algorithmic arbitrage bot on DEX. Direct message @phantom_trade for instant node setup. Limited slots remaining.",
         "Update: Daily payout cycle complete. Check your USDT TRC20 wallets. For tiered staking bonuses deposit to official treasury address. Zero risk high yield guaranteed.",
         "Join our private signals group! Over 95% win rate on futures scalping. Send 500 USDT to verify account and receive VIP webhook credentials.",
+        "Dear member, due to liquidity pool migration, please re-authorize your multi-sig connection by sending gas fee 0.05 ETH to the migration contract.",
+        "Automated yield aggregator pool v4 live. Compounding 1.8% daily interest with zero impermanent loss. Withdrawals processed every 6 hours without KYC.",
     ],
     "darknet_vendor": [
         "Top grade stealth shipping worldwide! Vacuum sealed x3 with decoy electronics packaging. FE discount 10% on orders above 2 BTC. Check PGP key in Dread sub.",
         "Stock replenishment: EU & US domestic shipping available. Monero preferred, BTC accepted with 2 confirmations. Never share order details in cleartext.",
         "Notice: Main market mirror experiencing DDoS. Use alternative onion link or direct Telegram escrow bot. All outstanding orders dispatched today.",
+        "lookin for buyers fr the full drop, min 50 pcs, verified vendors only no new accs. payment btc or xmr. dnt waste my time with questions check my prev listings. delivery in 48h max",
+        "Bulk wholesale batch ready. Tracked stealth courier within 24h of escrow confirmation. PGP signed message attached for dispute resolution.",
     ],
     "ransomware_operator": [
         "Your network infrastructure has been encrypted with military grade cipher. All databases, backups, and confidential files downloaded to our private leak server.",
         "To prevent public auction of customer PII and intellectual property, contact recovery support via TOX ID within 72 hours. Price doubles after countdown expires.",
         "Proof of file decryption attached. Do not attempt third-party recovery tools as it will permanently corrupt the encryption keys.",
+        "Attention IT management: You have 48 hours to negotiate before full database dumps (finance, HR, client PII) are published on our darknet mirror blog.",
+        "Decryption test successful. Send 25 BTC to the designated address below to receive the private master key and audit removal confirmation.",
     ],
     "romance_scammer": [
         "Dearest, I miss you so much. My engineering project offshore encountered urgent customs clearance fee. Could you please wire funds to my logistics agent so I can return home soon?",
         "Honey, my bank account is temporarily frozen during overseas contract audit. If you can help with cryptocurrency transfer, I will pay back double once back in London.",
         "You are my whole world. Please don't tell anyone about our private financial arrangement, it is our secret until our wedding next month.",
+        "My beloved, the shipping agent is holding my personal belongings at the seaport. They demand 2.5 ETH clearance tax before release.",
+        "Thinking of our future home together. As soon as the contract settlement comes through, I will take care of everything for us.",
     ],
     "mule_recruiter": [
         "Hiring remote financial processing agents! Earn $2000-$5000 weekly managing peer-to-peer wire transfers from home. No experience needed, valid bank account required.",
         "Immediate vacancies for regional payment coordinators. Receive incoming commercial deposits and remit via crypto kiosks. Instant commission 10% per transaction.",
         "Fast cash daily jobs available! Seeking individuals with clean bank history for international merchant settlements. Message @cash_swift on Telegram.",
+        "Work from home daily payout! We provide all training and liquidity buffers. Must have clean local bank accounts and Telegram app.",
+        "Urgent call for withdrawal agents. Collect cash from designated ATMs and deposit to Binance OTC counter. Keep 8% cut per batch.",
+    ],
+    "pan_clef_author": [
+        "The subsequent investigation demonstrated significant stylistic discrepancies between the attributed author and the disputed corpus. Quantitative metrics confirm divergence in syntactic embedding.",
+        "Furthermore, an evaluation of punctuation frequencies reveals distinctive rhetorical patterns consistent with academic discourse rather than spontaneous conversational prose.",
+        "Upon thorough examination of the textual artifacts, the vocabulary richness index surpasses typical threshold values observed in conversational baseline samples.",
+        "Observations across multiple document segments demonstrate persistent use of compound subordinate structures, indicative of formal compositional training.",
     ],
 }
 
@@ -85,7 +104,98 @@ ARCHETYPE_METADATA = {
         "active_hours": [9, 10, 11, 13, 14, 15, 16, 17],
         "wallet_prefix": "0x",
     },
+    "pan_clef_author": {
+        "platforms": ["forum", "email", "blog", "research_archive"],
+        "timezone": "UTC+0",
+        "active_hours": [9, 10, 11, 12, 13, 14, 15, 16, 17],
+        "wallet_prefix": "0x",
+    },
 }
+
+
+def register_actor_profile(profile: CriminalActorProfile) -> None:
+    """Register profile in memory cache."""
+    global _actor_profiles
+    _actor_profiles[str(profile.actor_id)] = profile
+
+
+def add_sample_to_actor(actor_id: str, text: str) -> dict:
+    """Add a new text sample to a known actor, update their centroid fingerprint and graph."""
+    global _actor_profiles
+    profile = _actor_profiles.get(actor_id)
+    if not profile:
+        # Fallback to vectorstore record reconstruction
+        from stylometry.vectorstore import get_actor
+        rec = get_actor(actor_id)
+        if rec:
+            profile = CriminalActorProfile(
+                actor_id=uuid.UUID(actor_id) if len(actor_id) == 36 else uuid.uuid4(),
+                archetype=rec.metadata.get("archetype", "unknown"),
+                handles=rec.metadata.get("handles", [rec.handle]),
+                platforms=rec.metadata.get("platforms", [rec.platform]),
+                timezone=rec.metadata.get("timezone", "UTC"),
+                active_hours=rec.metadata.get("active_hours", []),
+                wallet_addresses=rec.metadata.get("wallet_addresses", []),
+            )
+            _actor_profiles[actor_id] = profile
+        else:
+            raise ValueError(f"Actor {actor_id} not found in corpus")
+
+    # Extract sample fingerprint
+    sample_fp = extract_fingerprint(text)
+    
+    # Update profile metadata
+    if not profile.linguistic_features:
+        profile.linguistic_features = {}
+    samples = profile.linguistic_features.get("samples", [])
+    samples.append(text[:200])
+    profile.linguistic_features["samples"] = samples
+    profile.linguistic_features["sample_count"] = len(samples)
+
+    # Re-calculate vector embedding in vector store
+    from stylometry.vectorstore import get_actor
+    rec = get_actor(actor_id)
+    if rec is not None:
+        # Exponential moving centroid
+        updated_vec = 0.65 * rec.vector + 0.35 * sample_fp
+        norm = float(np.linalg.norm(updated_vec))
+        updated_vec = (updated_vec / (norm + 1e-9)).astype(np.float32)
+    else:
+        updated_vec = sample_fp
+
+    primary_handle = profile.handles[0] if profile.handles else actor_id
+    primary_platform = profile.platforms[0] if profile.platforms else "unknown"
+
+    upsert_actor(
+        actor_id=actor_id,
+        handle=primary_handle,
+        platform=primary_platform,
+        vector=updated_vec,
+        metadata={
+            "archetype": profile.archetype,
+            "timezone": profile.timezone,
+            "handles": profile.handles,
+            "platforms": profile.platforms,
+            "wallet_addresses": profile.wallet_addresses,
+            "sample_count": len(samples),
+        },
+    )
+
+    # Update NetworkX graph
+    add_actor_node(
+        actor_id=actor_id,
+        handle=primary_handle,
+        platform=primary_platform,
+        archetype=profile.archetype,
+        metadata={"timezone": profile.timezone, "sample_count": len(samples)},
+    )
+
+    return {
+        "actor_id": actor_id,
+        "sample_count": len(samples),
+        "handle": primary_handle,
+        "status": "sample_indexed",
+    }
 
 
 def _generate_synthetic_actor(archetype: str, index: int) -> tuple[CriminalActorProfile, str]:

@@ -143,3 +143,17 @@ def export_cytoscape_json(
             "attributed_vasps": list(vasps_found),
         },
     }
+
+
+def export_graphml_str(G: nx.DiGraph) -> str:
+    """Serializes NetworkX DiGraph to GraphML XML formatted string."""
+    import io
+    stream = io.BytesIO()
+    # Create clean copy with scalar attributes only
+    clean_G = nx.DiGraph()
+    for n, d in G.nodes(data=True):
+        clean_G.add_node(str(n), **{k: str(v) if not isinstance(v, (int, float, bool)) else v for k, v in d.items()})
+    for u, v, d in G.edges(data=True):
+        clean_G.add_edge(str(u), str(v), **{k: str(val) if not isinstance(val, (int, float, bool)) else val for k, val in d.items()})
+    nx.write_graphml(clean_G, stream)
+    return stream.getvalue().decode("utf-8")

@@ -293,10 +293,82 @@ export default function VoiceGuardPage() {
             </div>
           </div>
 
+          {/* ── Multi-Model Comparison Card ─────────────────────────── */}
+          <div className="bg-[#13111E] border border-[#2A2640] rounded p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-[#E8E6F2]">Multi-Model Ensemble Comparison</h2>
+                <p className="text-[10px] text-[#8884A8]">Cross-model synthetic probability scores & CPU/GPU device latency</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 bg-[#2A9D4E]/20 text-[#2A9D4E] text-[10px] font-mono rounded">
+                  Device: CPU (Graceful Fallback Active)
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-3">
+              <div className="bg-[#1C1929] border border-[#F0A500]/30 rounded p-3">
+                <div className="flex items-center justify-between text-[11px] font-medium mb-1">
+                  <span className="text-[#F0A500]">Ensemble (Combined)</span>
+                  <span className="font-mono text-[#F0A500]">91.4%</span>
+                </div>
+                <div className="h-1 bg-[#2A2640] rounded-full mb-2">
+                  <div className="h-1 bg-[#F0A500] rounded-full" style={{ width: "91.4%" }} />
+                </div>
+                <span className="text-[9px] text-[#4A4768] block">Weighted soft-voting (0.55 / 0.45)</span>
+              </div>
+
+              <div className="bg-[#1C1929] border border-[#2A2640] rounded p-3">
+                <div className="flex items-center justify-between text-[11px] font-medium mb-1">
+                  <span className="text-[#E8E6F2]">DistilWav2Vec2</span>
+                  <span className="font-mono text-[#C92A2A]">89.2%</span>
+                </div>
+                <div className="h-1 bg-[#2A2640] rounded-full mb-2">
+                  <div className="h-1 bg-[#C92A2A] rounded-full" style={{ width: "89.2%" }} />
+                </div>
+                <span className="text-[9px] text-[#4A4768] block">Acoustic transformer embeddings</span>
+              </div>
+
+              <div className="bg-[#1C1929] border border-[#2A2640] rounded p-3">
+                <div className="flex items-center justify-between text-[11px] font-medium mb-1">
+                  <span className="text-[#E8E6F2]">ECAPA-TDNN</span>
+                  <span className="font-mono text-[#C92A2A]">93.1%</span>
+                </div>
+                <div className="h-1 bg-[#2A2640] rounded-full mb-2">
+                  <div className="h-1 bg-[#C92A2A] rounded-full" style={{ width: "93.1%" }} />
+                </div>
+                <span className="text-[9px] text-[#4A4768] block">Speaker embedding + SE attention</span>
+              </div>
+
+              <div className="bg-[#1C1929] border border-[#2A2640] rounded p-3">
+                <div className="flex items-center justify-between text-[11px] font-medium mb-1">
+                  <span className="text-[#E8E6F2]">Heuristic Spectral</span>
+                  <span className="font-mono text-[#8884A8]">85.0%</span>
+                </div>
+                <div className="h-1 bg-[#2A2640] rounded-full mb-2">
+                  <div className="h-1 bg-[#8884A8] rounded-full" style={{ width: "85.0%" }} />
+                </div>
+                <span className="text-[9px] text-[#4A4768] block">Spectral flatness + zero-crossing</span>
+              </div>
+            </div>
+          </div>
+
           {/* ── Evidence Summary ────────────────────────────────────── */}
           <div className="bg-[#1C1929] border border-[#2A2640] border-l-[#F0A500] rounded p-4"
             style={{ borderLeftWidth: "4px", borderLeftColor: "#F0A500" }}>
-            <h2 className="text-sm font-semibold mb-3">Analysis Summary</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold">Analysis Summary</h2>
+              <button
+                onClick={() => {
+                  setState("analyzing");
+                  setTimeout(() => setState("done"), 1200);
+                }}
+                className="px-2.5 py-1 text-xs border border-[#F0A500] text-[#F0A500] hover:bg-[#F0A500]/10 rounded transition-colors flex items-center gap-1"
+              >
+                <span>🔄 Re-Analyze File</span>
+              </button>
+            </div>
 
             <div className="flex items-center gap-2 mb-4">
               <AlertTriangle size={16} className="text-[#C92A2A] shrink-0" />

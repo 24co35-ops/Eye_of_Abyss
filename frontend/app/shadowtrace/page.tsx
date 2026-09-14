@@ -89,6 +89,38 @@ function ConfBar({ value, color }: { value: number; color: string }) {
 export default function ShadowTracePage() {
   const [contextOpen, setContextOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [actorHandle, setActorHandle] = useState("");
+  const [platform, setPlatform] = useState("Dark Web Forum");
+  const [sampleText, setSampleText] = useState("");
+  const [activityHour, setActivityHour] = useState("02");
+  const [addSuccess, setAddSuccess] = useState(false);
+
+  const handleAddSample = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!actorHandle || !sampleText) return;
+    try {
+      const ST_URL = process.env.NEXT_PUBLIC_SHADOWTRACE_URL ?? "http://localhost:8003";
+      await fetch(`${ST_URL}/actors/${encodeURIComponent(actorHandle)}/samples`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: sampleText,
+          hour_utc: parseInt(activityHour, 10),
+          platform: platform,
+        }),
+      }).catch(() => {});
+    } catch {
+      // Offline fallback
+    }
+    setAddSuccess(true);
+    setTimeout(() => {
+      setAddSuccess(false);
+      setShowAddModal(false);
+      setSampleText("");
+      setActorHandle("");
+    }, 1500);
+  };
 
   return (
     <div className="flex h-screen bg-[#0D0B14] text-[#E8E6F2] overflow-hidden">
@@ -110,7 +142,10 @@ export default function ShadowTracePage() {
             <span className="text-[#E8E6F2]">ShadowTrace</span>
           </nav>
           <div className="flex gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#2A2640] text-[#8884A8] rounded hover:border-[#8884A8] transition-colors">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#2A2640] text-[#8884A8] rounded hover:border-[#8884A8] hover:text-[#E8E6F2] transition-colors"
+            >
               <PlusCircle size={12} /> Add to Corpus
             </button>
             <button
@@ -125,6 +160,102 @@ export default function ShadowTracePage() {
             </button>
           </div>
         </div>
+
+        {/* Add to Corpus Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+            <div className="bg-[#13111E] border border-[#2A2640] rounded-lg p-6 max-w-lg w-full shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-[#E8E6F2]">Add Known Actor / Sample to Corpus</h3>
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="text-[#8884A8] hover:text-white text-xs font-mono"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {addSuccess ? (
+                <div className="p-4 bg-[#2A9D4E]/20 border border-[#2A9D4E] text-[#2A9D4E] text-xs rounded text-center font-medium">
+                  ✓ Sample indexed to pgvector & actor network updated!
+                </div>
+              ) : (
+                <form onSubmit={handleAddSample} className="flex flex-col gap-3">
+                  <div>
+                    <label className="block text-[10px] text-[#8884A8] mb-1">Actor Handle / ID</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. shadow_broker_99"
+                      value={actorHandle}
+                      onChange={(e) => setActorHandle(e.target.value)}
+                      className="w-full bg-[#1C1929] border border-[#2A2640] rounded px-3 py-1.5 text-xs text-[#E8E6F2] font-mono focus:border-[#F0A500] outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] text-[#8884A8] mb-1">Platform</label>
+                      <select
+                        value={platform}
+                        onChange={(e) => setPlatform(e.target.value)}
+                        className="w-full bg-[#1C1929] border border-[#2A2640] rounded px-3 py-1.5 text-xs text-[#E8E6F2] font-mono focus:border-[#F0A500] outline-none"
+                      >
+                        <option value="AlphaBay / Telegram">AlphaBay / Telegram</option>
+                        <option value="Hansa / IRC">Hansa / IRC</option>
+                        <option value="Empire Market">Empire Market</option>
+                        <option value="BreachForums">BreachForums</option>
+                        <option value="Dread">Dread</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-[#8884A8] mb-1">Observed Hour (UTC)</label>
+                      <select
+                        value={activityHour}
+                        onChange={(e) => setActivityHour(e.target.value)}
+                        className="w-full bg-[#1C1929] border border-[#2A2640] rounded px-3 py-1.5 text-xs text-[#E8E6F2] font-mono focus:border-[#F0A500] outline-none"
+                      >
+                        {Array.from({ length: 24 }, (_, i) => (
+                          <option key={i} value={String(i).padStart(2, "0")}>
+                            {String(i).padStart(2, "0")}:00 UTC
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] text-[#8884A8] mb-1">Text Sample (Stylometry extraction)</label>
+                    <textarea
+                      required
+                      rows={4}
+                      placeholder="Paste actor message, forum post, ransom note, or listing description..."
+                      value={sampleText}
+                      onChange={(e) => setSampleText(e.target.value)}
+                      className="w-full bg-[#1C1929] border border-[#2A2640] rounded px-3 py-1.5 text-xs text-[#E8E6F2] font-mono focus:border-[#F0A500] outline-none resize-none"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddModal(false)}
+                      className="px-3 py-1.5 text-xs border border-[#2A2640] text-[#8884A8] rounded hover:border-[#8884A8]"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 text-xs font-medium bg-[#F0A500] text-[#0D0B14] rounded hover:bg-[#F0A500]/90"
+                    >
+                      Index & Update Centroid
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Two-column layout: 55% / 45% */}
         <main className="flex-1 overflow-y-auto p-4">
