@@ -5,6 +5,9 @@ from .schemas import (
     EvidenceObject,
     CriminalActorProfile,
     CaseFile,
+    ModuleEvidence,
+    CreateCaseRequest,
+    CaseResponse,
 )
 
 __all__ = [
@@ -13,4 +16,7 @@ __all__ = [
     "EvidenceObject",
     "CriminalActorProfile",
     "CaseFile",
+    "ModuleEvidence",
+    "CreateCaseRequest",
+    "CaseResponse",
 ]

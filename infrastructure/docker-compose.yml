@@ -57,12 +57,36 @@ services:
       PINATA_API_KEY: ${PINATA_API_KEY}
       PINATA_SECRET_KEY: ${PINATA_SECRET_KEY}
       JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      PYTHONPATH: /shared:/app
+    volumes:
+      - ../shared:/shared:ro
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     command: uvicorn main:app --host 0.0.0.0 --port 8000
+
+  case-engine-worker:
+    build:
+      context: ../services/case-engine
+    environment:
+      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-changeme}@postgres:5432/eyeofabyss
+      REDIS_URL: redis://redis:6379
+      POLYGON_RPC_URL: ${POLYGON_RPC_URL}
+      PRIVATE_KEY: ${PRIVATE_KEY}
+      EVIDENCE_REGISTRY_ADDRESS: ${EVIDENCE_REGISTRY_ADDRESS}
+      PINATA_API_KEY: ${PINATA_API_KEY}
+      PINATA_SECRET_KEY: ${PINATA_SECRET_KEY}
+      PYTHONPATH: /shared:/app
+    volumes:
+      - ../shared:/shared:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    command: celery -A tasks.celery_app worker --loglevel=info
 
   voiceguard:
     build:
@@ -72,6 +96,9 @@ services:
     environment:
       DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-changeme}@postgres:5432/eyeofabyss
       REDIS_URL: redis://redis:6379
+      PYTHONPATH: /shared:/app
+    volumes:
+      - ../shared:/shared:ro
     depends_on:
       - redis
     command: uvicorn main:app --host 0.0.0.0 --port 8001
@@ -87,6 +114,9 @@ services:
       NEO4J_USER: neo4j
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-changeme}
       REDIS_URL: redis://redis:6379
+      PYTHONPATH: /shared:/app
+    volumes:
+      - ../shared:/shared:ro
     depends_on:
       - postgres
       - neo4j
@@ -107,6 +137,9 @@ services:
       ALCHEMY_API_KEY: ${ALCHEMY_API_KEY}
       ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY}
       BLOCKSTREAM_API_KEY: ${BLOCKSTREAM_API_KEY}
+      PYTHONPATH: /shared:/app
+    volumes:
+      - ../shared:/shared:ro
     depends_on:
       - postgres
       - neo4j

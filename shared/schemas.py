@@ -82,3 +82,37 @@ class CaseFile(BaseModel):
     evidence: list[EvidenceObject] = Field(default_factory=list)
     convergence: Optional[CrossModuleSignals] = None
     anchor_tx_hashes: list[str] = Field(default_factory=list)
+
+
+class ModuleEvidence(BaseModel):
+    """Inter-service contract: what each module posts to Case Engine."""
+    module_id: Literal["voiceguard", "shadowtrace", "chaineye"]
+    case_id: UUID
+    evidence_id: UUID = Field(default_factory=uuid4)
+    confidence: float        # 0.0 – 1.0
+    verdict: str             # Human-readable
+    artifacts: list[Artifact] = Field(default_factory=list)
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    chain_anchor: Optional[str] = None  # Polygon tx hash, once anchored
+
+
+# ── Request / Response helpers used by Case Engine endpoints ──────────────────
+
+class CreateCaseRequest(BaseModel):
+    complainant_type: str
+    reported_loss: Optional[str] = None
+    modules_assigned: list[Literal["voiceguard", "shadowtrace", "chaineye"]]
+    notes: str = ""
+
+
+class CaseResponse(BaseModel):
+    case_id: UUID
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    complainant_type: str
+    reported_loss: Optional[str]
+    modules_assigned: list[str]
+    convergence: Optional[CrossModuleSignals]
+    anchor_tx_hashes: list[str]
+    evidence_count: int
