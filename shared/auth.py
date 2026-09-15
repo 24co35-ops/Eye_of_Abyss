@@ -24,7 +24,7 @@ try:
         return _jwt_mod.decode(token, secret, algorithms=algorithms)
 except ImportError:
     try:
-        import jwt as _pyjwt
+        import jwt as _pyjwt  # type: ignore[import-not-found]
         class JWTError(Exception):
             pass
         def _encode_jwt(claims: dict, secret: str, algorithm: str) -> str:
@@ -95,7 +95,7 @@ bearer  = HTTPBearer(auto_error=False)
 
 # ── Password hashing provider (passlib -> bcrypt -> stdlib pbkdf2) ───────────
 try:
-    from passlib.context import CryptContext
+    from passlib.context import CryptContext  # type: ignore[import-not-found]
     _pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
     def hash_password(plain: str) -> str:
         return _pwd_ctx.hash(plain)
@@ -103,7 +103,7 @@ try:
         return _pwd_ctx.verify(plain, hashed)
 except Exception:
     try:
-        import bcrypt
+        import bcrypt  # type: ignore[import-not-found]
         def hash_password(plain: str) -> str:
             return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
         def verify_password(plain: str, hashed: str) -> bool:
