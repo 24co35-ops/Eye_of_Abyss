@@ -161,6 +161,15 @@ def export_cytoscape_json() -> dict[str, Any]:
 
 def export_graphml() -> str:
     """Export the actor graph as GraphML XML string."""
+    try:
+        import numpy as np
+        if not hasattr(np, "float_"):
+            np.float_ = np.float64  # type: ignore
+        if not hasattr(np, "int_"):
+            np.int_ = np.int64  # type: ignore
+    except ImportError:
+        pass
+
     stream = io.BytesIO()
     nx.write_graphml(_actor_graph, stream)
     return stream.getvalue().decode("utf-8")

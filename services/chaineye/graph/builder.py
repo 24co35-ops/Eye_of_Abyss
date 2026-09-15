@@ -147,6 +147,15 @@ def export_cytoscape_json(
 
 def export_graphml_str(G: nx.DiGraph) -> str:
     """Serializes NetworkX DiGraph to GraphML XML formatted string."""
+    try:
+        import numpy as np
+        if not hasattr(np, "float_"):
+            np.float_ = np.float64  # type: ignore
+        if not hasattr(np, "int_"):
+            np.int_ = np.int64  # type: ignore
+    except ImportError:
+        pass
+
     import io
     stream = io.BytesIO()
     # Create clean copy with scalar attributes only

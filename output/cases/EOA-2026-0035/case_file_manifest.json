@@ -1,8 +1,8 @@
 {
-  "case_id": "e7593af5-c162-4a42-ae0c-412d0d9ff551",
+  "case_id": "8edcf17f-08f4-49c7-b28a-4a3992110ac3",
   "status": "ANCHORED",
-  "created_at": "2026-09-14T12:21:22.843137",
-  "updated_at": "2026-09-14T12:21:22.843142",
+  "created_at": "2026-09-15T11:14:08.433283",
+  "updated_at": "2026-09-15T11:14:08.433289",
   "created_by": "Insp. R. Mehta (Cybercrime Unit)",
   "complainant_type": "Corporate Fraud & Dark Web Extortion",
   "reported_loss": "INR 47.3 Lakhs",
@@ -13,10 +13,10 @@
   ],
   "evidence": [
     {
-      "evidence_id": "1e6568b4-4643-4ec8-b2ad-d7b7584ac6ab",
-      "case_id": "e7593af5-c162-4a42-ae0c-412d0d9ff551",
+      "evidence_id": "813e40c0-89a1-4db6-9afa-3810039b974e",
+      "case_id": "8edcf17f-08f4-49c7-b28a-4a3992110ac3",
       "module_id": "voiceguard",
-      "created_at": "2026-09-14T12:21:22.843215",
+      "created_at": "2026-09-15T11:14:08.433957",
       "created_by": "Insp. R. Mehta",
       "verdict": "SYNTHETIC -- AI-generated voice detected (TTS model)",
       "verdict_code": "SYNTHETIC_TTS",
@@ -46,17 +46,17 @@
         }
       ],
       "submitted_by": "VoiceGuard Pipeline v0.1",
-      "submitted_at": "2026-09-14T12:21:22.843224",
-      "hash_sha256": "0x3606e9b27e864e4a0f32df6d4afcebe1f588cbc0cebc463957b55ded209713b1",
-      "chain_anchor": "0xmock3606e9b27e864e4a0f32df6d4afcebe16aa7e6c2",
-      "ipfs_cid": "Qm1248c84f2a80edebc9a07f74a7553658fa9af3dea699_voiceguard",
+      "submitted_at": "2026-09-15T11:14:08.434361",
+      "hash_sha256": "0xd2bc6e2fcf8242af75dc606c66750f6fee786f05a82392e30bd7dc274fb736c4",
+      "chain_anchor": "0xmockd2bc6e2fcf8242af75dc606c66750f6f6aa92880",
+      "ipfs_cid": "Qm2c6be6b8a5757d07efdf38c2e0f279b63cfea9bf449e_voiceguard",
       "cross_signals": null
     },
     {
-      "evidence_id": "8b896da4-17a9-42c5-9587-2de11871c2b8",
-      "case_id": "e7593af5-c162-4a42-ae0c-412d0d9ff551",
+      "evidence_id": "2edf32dd-3474-433f-9a65-65b83382b1d0",
+      "case_id": "8edcf17f-08f4-49c7-b28a-4a3992110ac3",
       "module_id": "chaineye",
-      "created_at": "2026-09-14T12:21:22.844611",
+      "created_at": "2026-09-15T11:14:08.435498",
       "created_by": "Insp. R. Mehta",
       "verdict": "VASP Attribution: Binance Global (82%) | 4.73 BTC Traced Across 12 Wallets",
       "verdict_code": "WITHDRAWAL_ALERT",
@@ -89,17 +89,17 @@
         }
       ],
       "submitted_by": "ChainEye GNN Engine v0.1",
-      "submitted_at": "2026-09-14T12:21:22.844620",
-      "hash_sha256": "0x16ba5575acef75807cbdc256299441ddde24f4eda9b55a4ac89a40160efe6f35",
-      "chain_anchor": "0xmock16ba5575acef75807cbdc256299441dd6aa7e6c2",
-      "ipfs_cid": "Qm1248c84f2a80edebc9a07f74a7553658fa9af3dea699_chaineye",
+      "submitted_at": "2026-09-15T11:14:08.435506",
+      "hash_sha256": "0xd3fe7907bfcf4be8c8d42dc7e72638ef50e9789978b49ff1d69481b10e056e63",
+      "chain_anchor": "0xmockd3fe7907bfcf4be8c8d42dc7e72638ef6aa92880",
+      "ipfs_cid": "Qm2c6be6b8a5757d07efdf38c2e0f279b63cfea9bf449e_chaineye",
       "cross_signals": null
     },
     {
-      "evidence_id": "a64ca114-e4d2-44ac-8efe-3d3d6d7718be",
-      "case_id": "e7593af5-c162-4a42-ae0c-412d0d9ff551",
+      "evidence_id": "ea3d3693-f1dd-465a-a94c-68d1ecc17314",
+      "case_id": "8edcf17f-08f4-49c7-b28a-4a3992110ac3",
       "module_id": "shadowtrace",
-      "created_at": "2026-09-14T12:21:22.844701",
+      "created_at": "2026-09-15T11:14:08.435852",
       "created_by": "Insp. R. Mehta",
       "verdict": "Actor Attribution: d4rk_exch4nger (87% confidence, AlphaBay <-> Telegram)",
       "verdict_code": "ACTOR_ATTRIBUTED",
@@ -136,10 +136,10 @@
         }
       ],
       "submitted_by": "ShadowTrace Stylometry Engine v0.1",
-      "submitted_at": "2026-09-14T12:21:22.844703",
-      "hash_sha256": "0x8186a6914f4c14c4c4e33a25af752abf698a297f463740c262cd48f5574f098d",
-      "chain_anchor": "0xmock8186a6914f4c14c4c4e33a25af752abf6aa7e6c2",
-      "ipfs_cid": "Qm1248c84f2a80edebc9a07f74a7553658fa9af3dea699_shadowtrace",
+      "submitted_at": "2026-09-15T11:14:08.435860",
+      "hash_sha256": "0xc49a9844d8a9eb39123a5a5561e88dbeb3ee5a8d02208b41454f931b98e11bcf",
+      "chain_anchor": "0xmockc49a9844d8a9eb39123a5a5561e88dbe6aa92880",
+      "ipfs_cid": "Qm2c6be6b8a5757d07efdf38c2e0f279b63cfea9bf449e_shadowtrace",
       "cross_signals": null
     }
   ],
@@ -150,8 +150,8 @@
     "convergence_confidence": 0.81
   },
   "anchor_tx_hashes": [
-    "0xmock3606e9b27e864e4a0f32df6d4afcebe16aa7e6c2",
-    "0xmock16ba5575acef75807cbdc256299441dd6aa7e6c2",
-    "0xmock8186a6914f4c14c4c4e33a25af752abf6aa7e6c2"
+    "0xmockd2bc6e2fcf8242af75dc606c66750f6f6aa92880",
+    "0xmockd3fe7907bfcf4be8c8d42dc7e72638ef6aa92880",
+    "0xmockc49a9844d8a9eb39123a5a5561e88dbe6aa92880"
   ]
 }

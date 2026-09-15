@@ -4,5 +4,5 @@ Target VASP: Binance Global (Compliance & Legal Operations)
 Suspect Wallet Address: 1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2
 Amount Involved: 4.73 BTC (~INR 2.4 Cr)
 Predicted Withdrawal Window: Sep 16, 02:00-04:00 UTC
-Blockchain Evidence Anchor: 0xmock16ba5575acef75807cbdc256299441dd6aa7e6c2
+Blockchain Evidence Anchor: 0xmockd3fe7907bfcf4be8c8d42dc7e72638ef6aa92880
 Investigating Officer: Insp. R. Mehta, Cybercrime Cell

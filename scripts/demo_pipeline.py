@@ -1,6 +1,6 @@
-"""Eye of Abyss — SIH End-to-End Demo Verification Pipeline.
+"""Eye of Abyss — End-to-End Demo Verification Pipeline.
 
-PRD §7 Success Metrics Workflow:
+Success Metrics Workflow:
   1. Case Creation (Intake)
   2. VoiceGuard Live Deepfake Detection
   3. ChainEye Wallet Attribution & Withdrawal Prediction
@@ -35,11 +35,11 @@ from shared.schemas import Artifact, CaseFile, CrossModuleSignals, EvidenceObjec
 from anchoring.anchor import compute_evidence_hash, anchor_evidence_onchain
 
 
-def run_sih_demo_pipeline() -> bool:
+def run_demo_pipeline() -> bool:
     t0 = time.time()
     print("=" * 65)
-    print("   EYE OF ABYSS -- SIH 2026 END-TO-END DEMO PIPELINE")
-    print("   Problem Statement: Unified Cybercrime Convergence Engine")
+    print("   EYE OF ABYSS -- END-TO-END DEMO VERIFICATION PIPELINE")
+    print("   Unified Cybercrime Intelligence & Convergence Engine")
     print("=" * 65)
 
     # ── STEP 1: Case Creation ──────────────────────────────────────────────────
@@ -236,12 +236,12 @@ def run_sih_demo_pipeline() -> bool:
 
     elapsed = round(time.time() - t0, 2)
     print("\n" + "=" * 65)
-    print(f"   DEMO EXECUTION SUCCESSFUL in {elapsed}s (< 10 min SIH target)")
-    print("   All 7 SIH PRD Section 7 Success Metrics Satisfied!")
+    print(f"   DEMO EXECUTION SUCCESSFUL in {elapsed}s")
+    print("   All 7 Verification Milestones Satisfied!")
     print("=" * 65 + "\n")
     return True
 
 
 if __name__ == "__main__":
-    success = run_sih_demo_pipeline()
+    success = run_demo_pipeline()
     sys.exit(0 if success else 1)

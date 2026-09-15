@@ -82,6 +82,15 @@ def export_actor_graph(
                 g.add_node(vasp_id, label=vasp, node_type="vasp", data_source="synthetic")
             g.add_edge(to_w, vasp_id, relationship="DEPOSITED_TO")
 
+    try:
+        import numpy as np
+        if not hasattr(np, "float_"):
+            np.float_ = np.float64  # type: ignore
+        if not hasattr(np, "int_"):
+            np.int_ = np.int64  # type: ignore
+    except ImportError:
+        pass
+
     graphml_path = shared_dir / "actor_graph.graphml"
     nx.write_graphml(g, graphml_path)
 
