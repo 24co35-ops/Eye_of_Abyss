@@ -14,9 +14,6 @@ from uuid import UUID, uuid4
 from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
-from sqlalchemy import Boolean, Column, DateTime, String
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import DeclarativeBase
 
 # ── JWT Provider (python-jose -> PyJWT -> pure Python stdlib HMAC-SHA256) ──
 try:
@@ -143,24 +140,30 @@ class Role(str, Enum):
 _RANK = {Role.VIEWER: 0, Role.INVESTIGATOR: 1, Role.SUPERVISOR: 2, Role.OWNER: 3}
 
 
-# ── SQLAlchemy User model (imported by db.py in case-engine) ─────────────────
+# ── SQLAlchemy User model (optional, used by case-engine) ──────────────────────
+try:
+    from sqlalchemy import Boolean, Column, DateTime, String
+    from sqlalchemy.dialects.postgresql import UUID as PGUUID
+    from sqlalchemy.orm import DeclarativeBase
 
-class AuthBase(DeclarativeBase):
-    """Separate declarative base so services that only need auth don't inherit case tables."""
-    pass
+    class AuthBase(DeclarativeBase):
+        """Separate declarative base so services that only need auth don't inherit case tables."""
+        pass
 
+    class User(AuthBase):
+        __tablename__ = "users"
 
-class User(AuthBase):
-    __tablename__ = "users"
-
-    user_id         = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    email           = Column(String(255), unique=True, nullable=False, index=True)
-    hashed_password = Column(String(255), nullable=True)   # NULL for wallet-only users
-    role            = Column(String(20), nullable=False, default=Role.VIEWER.value)
-    wallet_address  = Column(String(42), unique=True, nullable=True)  # 0x... ETH address
-    is_active       = Column(Boolean, default=True, nullable=False)
-    created_at      = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+        user_id         = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+        email           = Column(String(255), unique=True, nullable=False, index=True)
+        hashed_password = Column(String(255), nullable=True)   # NULL for wallet-only users
+        role            = Column(String(20), nullable=False, default=Role.VIEWER.value)
+        wallet_address  = Column(String(42), unique=True, nullable=True)  # 0x... ETH address
+        is_active       = Column(Boolean, default=True, nullable=False)
+        created_at      = Column(DateTime, default=datetime.utcnow, nullable=False)
+        updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+except ImportError:
+    AuthBase = None  # type: ignore
+    User = None  # type: ignore
 
 
 # ── Token helpers ─────────────────────────────────────────────────────────────
