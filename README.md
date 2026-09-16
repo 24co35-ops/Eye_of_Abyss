@@ -34,7 +34,7 @@
     ┌──────────▼──────────┐  ┌────────────▼────────────┐  ┌──────────▼──────────┐
     │     VoiceGuard      │  │      ShadowTrace        │  │      ChainEye       │
     │  Deepfake Detection │  │  Dark Web Attribution   │  │  Crypto Forensics   │
-    │ (PyTorch · Port 8001│  │(BERT + Graph · Port 8003│  │ (Web3/GNN · Port 8002│
+    │  (PyTorch · :8001)  │  │  (BERT+Graph · :8002)  │  │  (Web3/GNN · :8003) │
     └─────────────────────┘  └─────────────────────────┘  └─────────────────────┘
                │                          │                           │
     ┌──────────▼──────────────────────────▼───────────────────────────▼──────────┐
@@ -47,6 +47,17 @@
                                │  Polygon / EVM / IPFS │
                                └───────────────────────┘
 ```
+
+**Port map:**
+
+| Service | Port |
+|---|---|
+| Case Engine | 8000 |
+| VoiceGuard | 8001 |
+| ShadowTrace | 8002 |
+| ChainEye | 8003 |
+| Frontend | 3000 |
+| Nginx (reverse proxy) | 80 |
 
 ---
 
@@ -64,41 +75,82 @@
 ## Quickstart
 
 ### Prerequisites
+
 - Python 3.11+
 - Node.js 20+
-- Docker & Docker Compose (optional for containerized setup)
+- Docker & Docker Compose v2.x
 
 ### 1. Clone & Configure
+
 ```bash
 git clone https://github.com/24co35-ops/Eye_of_Abyss.git
 cd Eye_of_Abyss
 cp .env.example .env
+# Edit .env — set JWT_SECRET, POSTGRES_PASSWORD, NEO4J_PASSWORD at minimum
 ```
 
-### 2. Run Locally
-**PowerShell (Windows):**
+### 2. Start the Stack
+
+**Recommended (Makefile — works everywhere):**
+
+```bash
+make up
+# Equivalent to: docker-compose -f infrastructure/docker-compose.yml up --build
+```
+
+**Or call the infrastructure file directly:**
+
+```bash
+docker-compose -f infrastructure/docker-compose.yml up --build
+```
+
+**PowerShell (Windows, local dev without Docker):**
+
 ```powershell
 ./run.ps1
 ```
 
-**Docker Compose (Development):**
-```bash
-docker-compose up --build
-```
+**Hardened Production:**
 
-**Docker Compose (Hardened Production):**
 ```bash
 docker-compose -f infrastructure/docker-compose.prod.yml up -d --build
 ```
 
-Access the Command Center at `http://localhost:3000`.
+### 3. Access
+
+| Endpoint | URL |
+|---|---|
+| Command Center (browser) | http://localhost:3000 |
+| Nginx reverse proxy | http://localhost:80 |
+| Case Engine API | http://localhost:8000/docs |
+| VoiceGuard API | http://localhost:8001/docs |
+| ShadowTrace API | http://localhost:8002/docs |
+| ChainEye API | http://localhost:8003/docs |
+
+### 4. Local Dev (no Docker)
+
+For frontend-only development against running services, create `frontend/.env.local`:
+
+```bash
+cp frontend/.env.local.example frontend/.env.local
+# Values default to localhost:800x for local backends
+```
+
+Then:
+
+```bash
+make frontend     # starts Next.js dev server on :3000
+make dev-case-engine   # starts case engine on :8000
+```
 
 ---
 
 ## Extension Points & Developer Guide
 
 ### 1. Plugin-Style Module Registration
+
 New forensic modules (e.g. `ImageGuard`, `TelegramScraper`) can be registered with Case Engine dynamically without modifying core orchestrator code:
+
 ```bash
 curl -X POST http://localhost:8000/modules/register \
   -H "Content-Type: application/json" \
@@ -113,7 +165,9 @@ curl -X POST http://localhost:8000/modules/register \
 ```
 
 ### 2. Webhook Event Notifications
+
 Subscribe external endpoints to case events (`case.anchored`, `evidence.submitted`, `threat.high_alert`):
+
 ```bash
 curl -X POST http://localhost:8000/webhooks/subscribe \
   -H "Content-Type: application/json" \
@@ -123,12 +177,15 @@ curl -X POST http://localhost:8000/webhooks/subscribe \
     "events": ["case.anchored", "threat.high_alert"]
   }'
 ```
+
 Payloads are signed with HMAC-SHA256 in the `X-EOB-Signature` header.
 
 ### 3. Multi-Chain Anchoring Adapters
+
 Switch networks via the `BLOCKCHAIN_NETWORK` environment variable (`polygon`, `ethereum`, `arbitrum`, or `mock`). Custom adapters can be added in `shared/blockchain_adapters.py`.
 
 ### 4. Case Import / Export Bundles
+
 - **Export Case Bundle**: `GET /cases/{case_id}/package` (downloads a `.zip` containing verified metadata, checksums, and artifact files).
 - **Import Case Bundle**: `POST /cases/import` (uploads and verifies a case package archive into the database).
 

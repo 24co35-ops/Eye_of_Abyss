@@ -1,4 +1,21 @@
-# Convenience alias — actual compose file lives in infrastructure/
-# Usage: docker-compose up --build
-include:
-  - infrastructure/docker-compose.yml
+# Root docker-compose.yml — convenience entry point.
+#
+# Modern Docker Compose (>= 2.20 / CLI plugin v2.20+) supports `include:`.
+# Older installs do not. Either way, prefer the Makefile targets which
+# explicitly pass the infrastructure file:
+#
+#   make up        →  docker-compose -f infrastructure/docker-compose.yml up --build
+#   make down      →  docker-compose -f infrastructure/docker-compose.yml down
+#
+# If you ARE on a modern Compose and want `docker-compose up` from the repo
+# root to just work, uncomment the include block below and comment the rest.
+#
+# ─── Option A: include (modern Compose >= 2.20) ────────────────────────────
+# include:
+#   - infrastructure/docker-compose.yml
+#
+# ─── Option B: explicit redirect via Makefile (always works) ───────────────
+# Run:  make up
+#
+# ─── Option C: call the infrastructure file directly (always works) ────────
+# Run:  docker-compose -f infrastructure/docker-compose.yml up --build

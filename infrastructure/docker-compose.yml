@@ -28,6 +28,13 @@ services:
       - "7687:7687"
     volumes:
       - neo4j_data:/data
+    healthcheck:
+      # Neo4j 5.x: bolt port is ready when this returns 200
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
 
   redis:
     image: redis:7.2-alpine
@@ -63,14 +70,17 @@ services:
     environment:
       DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-changeme}@postgres:5432/eyeofabyss
       PYTHONPATH: /shared:/app
+      SEED_OWNER_EMAIL: ${SEED_OWNER_EMAIL:-owner@eyeofabyss.local}
+      SEED_OWNER_PASSWORD: ${SEED_OWNER_PASSWORD:-changeme123}
     volumes:
       - ../shared:/shared:ro
+      - ../scripts:/scripts:ro
     depends_on:
       postgres:
         condition: service_healthy
     command: >
       sh -c "alembic -c alembic.ini upgrade head &&
-             python /app/../../scripts/seed.py || true"
+             python /scripts/seed.py || true"
     restart: "no"
 
   # ── Backend Services ───────────────────────────────────────────────────────
@@ -144,7 +154,8 @@ services:
     volumes:
       - ../shared:/shared:ro
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     command: uvicorn main:app --host 0.0.0.0 --port 8001
 
   shadowtrace:
@@ -166,9 +177,12 @@ services:
     volumes:
       - ../shared:/shared:ro
     depends_on:
-      - postgres
-      - neo4j
-      - redis
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     command: uvicorn main:app --host 0.0.0.0 --port 8002
 
   chaineye:
@@ -193,9 +207,12 @@ services:
     volumes:
       - ../shared:/shared:ro
     depends_on:
-      - postgres
-      - neo4j
-      - redis
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     command: uvicorn main:app --host 0.0.0.0 --port 8003
 
   # ── Frontend ───────────────────────────────────────────────────────────────
@@ -205,12 +222,17 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_CASE_ENGINE_URL: http://localhost:8000
-      NEXT_PUBLIC_VOICEGUARD_URL: http://localhost:8001
-      NEXT_PUBLIC_SHADOWTRACE_URL: http://localhost:8002
-      NEXT_PUBLIC_CHAINEYE_URL: http://localhost:8003
+      # Inside Docker, the browser JS runs on the HOST machine (not in the
+      # container), so NEXT_PUBLIC_* values must be reachable from the host.
+      # We route all API traffic through the nginx reverse proxy on port 80
+      # so the browser only ever calls one origin.
+      NEXT_PUBLIC_CASE_ENGINE_URL: http://localhost/api/cases
+      NEXT_PUBLIC_VOICEGUARD_URL: http://localhost/api/voice
+      NEXT_PUBLIC_SHADOWTRACE_URL: http://localhost/api/shadow
+      NEXT_PUBLIC_CHAINEYE_URL: http://localhost/api/chain
     depends_on:
       - case-engine
+      - nginx
 
   # ── Reverse Proxy ──────────────────────────────────────────────────────────
   nginx:
@@ -220,7 +242,6 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - frontend
       - case-engine
       - voiceguard
       - shadowtrace

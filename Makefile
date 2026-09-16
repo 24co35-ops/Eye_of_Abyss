@@ -1,21 +1,28 @@
-.PHONY: up down build health dev-voiceguard dev-shadowtrace dev-chaineye dev-case-engine frontend install-contracts
+.PHONY: up down build health logs dev-voiceguard dev-shadowtrace dev-chaineye dev-case-engine frontend frontend-install install-contracts compile-contracts deploy-mumbai generate-data seed demo anchor-test test
+
+COMPOSE := docker-compose -f infrastructure/docker-compose.yml
 
 # ── Docker Compose ─────────────────────────────────────────────────────────
 up:
-	docker-compose -f infrastructure/docker-compose.yml up --build
+	$(COMPOSE) up --build
 
 down:
-	docker-compose -f infrastructure/docker-compose.yml down
+	$(COMPOSE) down
 
 build:
-	docker-compose -f infrastructure/docker-compose.yml build
+	$(COMPOSE) build
+
+logs:
+	$(COMPOSE) logs -f
 
 # ── Health checks ──────────────────────────────────────────────────────────
+# Services are proxied through nginx on :80 in Docker; direct ports also work.
 health:
 	@echo "Case Engine:  $$(curl -sf http://localhost:8000/health || echo OFFLINE)"
 	@echo "VoiceGuard:   $$(curl -sf http://localhost:8001/health || echo OFFLINE)"
 	@echo "ShadowTrace:  $$(curl -sf http://localhost:8002/health || echo OFFLINE)"
 	@echo "ChainEye:     $$(curl -sf http://localhost:8003/health || echo OFFLINE)"
+	@echo "Via nginx:    $$(curl -sf http://localhost/health/cases  || echo OFFLINE)"
 
 # ── Individual dev servers ─────────────────────────────────────────────────
 dev-case-engine:

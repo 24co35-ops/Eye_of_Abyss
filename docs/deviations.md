@@ -18,5 +18,45 @@ This document tracks intentional architectural choices and adaptations made acro
 - **NetworkX GraphML**: The actor graph export uses NetworkX GraphML format with node types (`actor`, `wallet`, `platform`, `vasp`) and typed relationships (`OPERATES_WALLET`, `TRANSACTED_WITH`, `POSTED_ON`, `DEPOSITED_TO`).
 
 ## 4. Frontend Architecture
+
 - **Next.js 14 App Router**: Static generation with standalone output (`output: "standalone"`) for Docker and instant client-side transitions.
 - **Interactive Visualizations**: Cytoscape.js for force-directed actor and wallet graphs, custom SVG radar charts, and WaveSurfer.js audio waveforms.
+
+---
+
+## 5. Docker Networking & NEXT_PUBLIC_* URLs
+
+**Problem:** `NEXT_PUBLIC_*` environment variables are baked into the Next.js bundle at build time and are executed by the browser (host machine), not inside the Docker network. Setting them to `http://case-engine:8000` breaks the browser because `case-engine` is not a hostname the host DNS can resolve.
+
+**Decision:** All API traffic is routed through the **nginx reverse proxy on port 80**, which is the only service with a public host port mapping for API calls. The browser calls `http://localhost/api/cases`, `http://localhost/api/voice`, etc., and nginx proxies to the internal Docker service names.
+
+```
+Browser (host) → http://localhost/api/cases → nginx:80 → case-engine:8000
+Browser (host) → http://localhost/api/voice  → nginx:80 → voiceguard:8001
+Browser (host) → http://localhost/api/shadow → nginx:80 → shadowtrace:8002
+Browser (host) → http://localhost/api/chain  → nginx:80 → chaineye:8003
+```
+
+For local non-Docker development, copy `frontend/.env.local.example` to `frontend/.env.local` — Next.js loads it automatically, pointing `NEXT_PUBLIC_*` to `http://localhost:800x` directly.
+
+---
+
+## 6. Standardized Port Assignments
+
+| Service | Port | Rationale |
+|---|---|---|
+| Case Engine | 8000 | Primary orchestrator, lowest number |
+| VoiceGuard | 8001 | Module 1 (audio) |
+| ShadowTrace | 8002 | Module 2 (text/identity) |
+| ChainEye | 8003 | Module 3 (blockchain) |
+| Frontend | 3000 | Next.js default |
+| Nginx | 80 | Standard HTTP; single browser origin |
+
+These ports are consistent across `infrastructure/docker-compose.yml`, `.env.example`, `frontend/.env.local.example`, `Makefile`, and the README architecture diagram. The earlier deviation where ShadowTrace showed `:8003` and ChainEye showed `:8002` in the README diagram has been corrected.
+
+---
+
+## 7. Neo4j Readiness
+
+Neo4j 5.x takes 20–40 seconds to fully start the Bolt server after the container is running. Services that depend on Neo4j (`shadowtrace`, `chaineye`) now use `condition: service_healthy` against a Neo4j healthcheck that polls the HTTP browser port (7474). This replaces the previous bare `depends_on` list that caused connection errors on first boot.
+
