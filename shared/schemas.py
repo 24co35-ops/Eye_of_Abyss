@@ -24,7 +24,7 @@ class CrossModuleSignals(BaseModel):
 class EvidenceObject(BaseModel):
     # Identity
     evidence_id: UUID = Field(default_factory=uuid4)
-    case_id: UUID
+    case_id: Optional[UUID] = None
     module_id: str = Field(..., description="Module identifier (voiceguard, shadowtrace, chaineye, or custom plugin)")
     created_at: datetime = Field(default_factory=datetime.utcnow)
     created_by: str = "SYSTEM"  # Officer ID or service
@@ -42,7 +42,7 @@ class EvidenceObject(BaseModel):
     artifacts: list[Artifact] = Field(default_factory=list)
 
     # Chain of custody
-    submitted_by: str
+    submitted_by: str = "SYSTEM"
     submitted_at: datetime = Field(default_factory=datetime.utcnow)
     hash_sha256: str = ""
     chain_anchor: Optional[str] = None  # Polygon tx hash

@@ -6,7 +6,7 @@ Roles: OWNER > SUPERVISOR > INVESTIGATOR > VIEWER
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Annotated, Optional
 from uuid import UUID, uuid4
@@ -93,24 +93,27 @@ REFRESH_COOKIE     = "refresh_token"
 
 bearer  = HTTPBearer(auto_error=False)
 
-# ── Password hashing provider (passlib -> bcrypt -> stdlib pbkdf2) ───────────
+# ── Password hashing provider (bcrypt native -> passlib -> stdlib pbkdf2) ─────
 try:
-    from passlib.context import CryptContext  # type: ignore[import-not-found]
-    _pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    import bcrypt  # type: ignore[import-not-found]
     def hash_password(plain: str) -> str:
-        return _pwd_ctx.hash(plain)
+        p_bytes = plain.encode("utf-8")[:72]
+        salt = bcrypt.gensalt()
+        return bcrypt.hashpw(p_bytes, salt).decode("utf-8")
     def verify_password(plain: str, hashed: str) -> bool:
-        return _pwd_ctx.verify(plain, hashed)
-except Exception:
+        try:
+            p_bytes = plain.encode("utf-8")[:72]
+            return bcrypt.checkpw(p_bytes, hashed.encode("utf-8"))
+        except Exception:
+            return False
+except ImportError:
     try:
-        import bcrypt  # type: ignore[import-not-found]
+        from passlib.context import CryptContext  # type: ignore[import-not-found]
+        _pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
         def hash_password(plain: str) -> str:
-            return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            return _pwd_ctx.hash(plain)
         def verify_password(plain: str, hashed: str) -> bool:
-            try:
-                return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
-            except Exception:
-                return False
+            return _pwd_ctx.verify(plain, hashed)
     except Exception:
         import hashlib, hmac
         def hash_password(plain: str) -> str:
@@ -176,7 +179,7 @@ class TokenPayload(BaseModel):
 
 
 def create_access_token(sub: str, role: str, email: str = "") -> str:
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_EXPIRE_MIN)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_EXPIRE_MIN)
     return _encode_jwt(
         {"sub": sub, "role": role, "email": email, "exp": int(expire.timestamp())},
         JWT_SECRET, algorithm=JWT_ALGORITHM,
@@ -184,7 +187,7 @@ def create_access_token(sub: str, role: str, email: str = "") -> str:
 
 
 def create_refresh_token(sub: str) -> str:
-    expire = datetime.utcnow() + timedelta(days=REFRESH_EXPIRE_DAYS)
+    expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_EXPIRE_DAYS)
     return _encode_jwt(
         {"sub": sub, "exp": int(expire.timestamp())},
         JWT_REFRESH_SECRET, algorithm=JWT_ALGORITHM,
@@ -234,16 +237,17 @@ def get_current_user(
     return decode_access_token(creds.credentials)
 
 
-def require_role(*roles: Role):
+def require_role(*roles: Role | str):
     """Dependency factory: require one of the given roles (or higher rank)."""
-    min_rank = min(_RANK[r] for r in roles)
+    parsed_roles = [Role(r) if isinstance(r, str) else r for r in roles]
+    min_rank = min(_RANK[r] for r in parsed_roles)
 
     def _check(user: Annotated[TokenPayload, Depends(get_current_user)]) -> TokenPayload:
         user_rank = _RANK.get(Role(user.role), -1)
         if user_rank < min_rank:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
-                detail=f"Role '{user.role}' insufficient. Required: {[r.value for r in roles]}"
+                detail=f"Role '{user.role}' insufficient. Required: {[r.value for r in parsed_roles]}"
             )
         return user
     return _check

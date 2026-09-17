@@ -15,6 +15,8 @@ _ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_ROOT))
 sys.path.insert(0, str(_ROOT / "shared"))
 sys.path.insert(0, str(_ROOT / "services" / "case-engine"))
+sys.path.insert(0, "/app")
+sys.path.insert(0, "/shared")
 
 from shared.schemas import Artifact, CaseFile, CrossModuleSignals, EvidenceObject
 
@@ -232,20 +234,21 @@ async def seed_database():
     print("=" * 60)
 
     # 1. Write static fixtures JSON for frontend / offline dev
-    fixtures_dir = _ROOT / "frontend" / "public" / "fixtures"
-    fixtures_dir.mkdir(parents=True, exist_ok=True)
-    cases_fixture_path = fixtures_dir / "cases.json"
-    with open(cases_fixture_path, "w", encoding="utf-8") as f:
-        json.dump(SEED_CASES, f, indent=2)
-    print(f"  [+] Static fixtures written to {cases_fixture_path}")
+    try:
+        fixtures_dir = _ROOT / "frontend" / "public" / "fixtures"
+        fixtures_dir.mkdir(parents=True, exist_ok=True)
+        cases_fixture_path = fixtures_dir / "cases.json"
+        with open(cases_fixture_path, "w", encoding="utf-8") as f:
+            json.dump(SEED_CASES, f, indent=2)
+        print(f"  [+] Static fixtures written to {cases_fixture_path}")
+    except Exception as exc:
+        print(f"  [-] Static fixtures write skipped ({exc}).")
 
-    # 2. Try DB seeding if PostgreSQL is available
+    # 2. Try DB seeding if PostgreSQL or SQLite is available
     try:
         from db import Case, Evidence, SessionLocal, User, create_tables
         from sqlalchemy import select
-        from passlib.context import CryptContext
-
-        _pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        from shared.auth import hash_password
 
         await create_tables()
         async with SessionLocal() as db:
@@ -254,7 +257,7 @@ async def seed_database():
             if not existing_owner:
                 owner = User(
                     email=SEED_OWNER_EMAIL,
-                    hashed_password=_pwd.hash(SEED_OWNER_PASSWORD),
+                    hashed_password=hash_password(SEED_OWNER_PASSWORD),
                     role="OWNER",
                     is_active=True,
                 )

@@ -18,9 +18,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# Make shared package importable both locally and in container
+# Make shared package and local service directory importable
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "shared")))
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 try:
     from shared.schemas import (
@@ -54,7 +55,15 @@ except ImportError:
 logger = setup_logger("case-engine")
 
 from anchoring import anchor_on_polygon, compute_hash, pin_to_ipfs
-from auth import router as auth_router, users_router
+
+try:
+    from auth import router as auth_router, users_router
+except (ImportError, AttributeError):
+    import importlib.util as _importlib_util
+    _auth_spec = _importlib_util.spec_from_file_location("case_engine_auth", os.path.join(os.path.dirname(__file__), "auth.py"))
+    _auth_mod = _importlib_util.module_from_spec(_auth_spec)
+    _auth_spec.loader.exec_module(_auth_mod)
+    auth_router, users_router = _auth_mod.router, _auth_mod.users_router
 from convergence import compute_and_save as compute_convergence_inline
 from db import AuditLog, Case, Evidence, create_tables, get_db
 from pdf_export import generate as generate_pdf, generate_freeze_json
@@ -225,6 +234,8 @@ async def submit_evidence(
         case.updated_at = datetime.utcnow()
         _append_audit(case, user.sub, f"AUTO_ADVANCE -> {next_status}")
 
+    await db.commit()
+
     # Trigger convergence inline when 2+ modules have submitted
     if len(set(submitted_modules)) >= 2:
         try:
@@ -236,7 +247,6 @@ async def submit_evidence(
             except Exception:
                 pass  # Celery optional in local dev
 
-    await db.commit()
     return {
         "evidence_id": str(ev.evidence_id),
         "hash_sha256": ev_hash,
@@ -407,9 +417,9 @@ async def export_case(
 @app.get("/cases/{case_id}/freeze-request", tags=["export"])
 async def freeze_request(
     case_id: str,
+    db: DB,
+    user: CurrentUser,
     fmt: str = "json",
-    db: DB = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
 ):
     """Return freeze-request draft as JSON or PDF."""
     case = await _get_case_or_404(case_id, db)
@@ -468,7 +478,7 @@ async def manual_transition(
     case_id: str,
     target_status: str,
     db: DB,
-    user: Annotated[TokenPayload, Depends(require_role("SUPERVISOR", "ADMIN"))],
+    user: Annotated[TokenPayload, Depends(require_role(Role.SUPERVISOR, Role.OWNER))],
 ):
     case = await _get_case_or_404(case_id, db)
     try:
@@ -596,9 +606,9 @@ async def download_case_package(case_id: str, db: DB, user: CurrentUser):
 
 @app.post("/cases/import", status_code=status.HTTP_201_CREATED, tags=["cases"])
 async def import_case(
+    db: DB,
+    user: Annotated[TokenPayload, Depends(require_role(Role.INVESTIGATOR, Role.SUPERVISOR, Role.OWNER))],
     file: UploadFile = File(...),
-    db: DB = Depends(get_db),
-    user: Annotated[TokenPayload, Depends(require_role(Role.INVESTIGATOR, Role.SUPERVISOR, Role.OWNER))] = None,
 ):
     """Import a verified case package ZIP archive and restore into the database."""
     zip_content = await file.read()

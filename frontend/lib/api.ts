@@ -9,8 +9,8 @@ import { getStoredToken } from "./auth";
 
 export const CASE_ENGINE = process.env.NEXT_PUBLIC_CASE_ENGINE_URL ?? "http://localhost:8000";
 export const VOICEGUARD = process.env.NEXT_PUBLIC_VOICEGUARD_URL ?? "http://localhost:8001";
-export const CHAINEYE = process.env.NEXT_PUBLIC_CHAINEYE_URL ?? "http://localhost:8002";
-export const SHADOWTRACE = process.env.NEXT_PUBLIC_SHADOWTRACE_URL ?? "http://localhost:8003";
+export const SHADOWTRACE = process.env.NEXT_PUBLIC_SHADOWTRACE_URL ?? "http://localhost:8002";
+export const CHAINEYE = process.env.NEXT_PUBLIC_CHAINEYE_URL ?? "http://localhost:8003";
 
 function getAuthHeaders(): HeadersInit {
   const token = typeof window !== "undefined" ? getStoredToken() : null;

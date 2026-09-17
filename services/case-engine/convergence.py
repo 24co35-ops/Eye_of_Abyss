@@ -42,7 +42,7 @@ def _neo4j_actor_link(wallet: Optional[str], handle: Optional[str]) -> Optional[
         return None
     try:
         from neo4j import GraphDatabase
-        driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+        driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD), connection_timeout=1.0)
         with driver.session() as session:
             if wallet and handle:
                 result = session.run(

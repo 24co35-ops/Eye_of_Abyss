@@ -10,15 +10,20 @@ import os
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, String, Text, Uuid
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://eyeofabyss:changeme@localhost:5432/eyeofabyss")
-_async_url   = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+if DATABASE_URL.startswith("postgresql://"):
+    _async_url = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL.startswith("sqlite://") and not DATABASE_URL.startswith("sqlite+aiosqlite://"):
+    _async_url = DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://", 1)
+else:
+    _async_url = DATABASE_URL
 
-engine       = create_async_engine(_async_url, echo=False, pool_pre_ping=True)
+connect_args = {"timeout": 30} if "sqlite" in _async_url else {}
+engine = create_async_engine(_async_url, echo=False, pool_pre_ping=True, connect_args=connect_args)
 SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -31,7 +36,7 @@ class Base(DeclarativeBase):
 class User(Base):
     __tablename__ = "users"
 
-    user_id         = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    user_id         = Column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     email           = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=True)   # NULL for wallet-only users
     role            = Column(String(20),  nullable=False, default="VIEWER")
@@ -46,7 +51,7 @@ class User(Base):
 class Case(Base):
     __tablename__ = "cases"
 
-    case_id          = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    case_id          = Column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     status           = Column(String(40), nullable=False, default="CREATED")
     created_at       = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at       = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -64,8 +69,8 @@ class Case(Base):
 class Evidence(Base):
     __tablename__ = "evidence"
 
-    evidence_id     = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    case_id         = Column(UUID(as_uuid=True), ForeignKey("cases.case_id"), nullable=False, index=True)
+    evidence_id     = Column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    case_id         = Column(Uuid(as_uuid=True), ForeignKey("cases.case_id"), nullable=False, index=True)
     module_id       = Column(String(20), nullable=False)
     created_at      = Column(DateTime, default=datetime.utcnow, nullable=False)
     submitted_at    = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -87,7 +92,7 @@ class Evidence(Base):
 class ActorProfile(Base):
     __tablename__ = "actor_profiles"
 
-    actor_id             = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    actor_id             = Column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
     archetype            = Column(String(80), nullable=False)
     handles              = Column(JSON, default=list)
     platforms            = Column(JSON, default=list)
@@ -105,8 +110,8 @@ class ActorProfile(Base):
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
-    log_id     = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    case_id    = Column(UUID(as_uuid=True), ForeignKey("cases.case_id"), nullable=True, index=True)
+    log_id     = Column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    case_id    = Column(Uuid(as_uuid=True), ForeignKey("cases.case_id"), nullable=True, index=True)
     actor      = Column(String(255), nullable=False)   # email or user_id
     action     = Column(String(120), nullable=False)
     detail     = Column(JSON, default=dict)

@@ -45,3 +45,8 @@ contracts/typechain-types/
 # OS
 .DS_Store
 Thumbs.db
+
+# Databases & local test DBs
+*.db
+*.sqlite
+*.sqlite3
