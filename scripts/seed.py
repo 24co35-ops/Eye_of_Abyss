@@ -246,7 +246,7 @@ async def seed_database():
 
     # 2. Try DB seeding if PostgreSQL or SQLite is available
     try:
-        from db import Case, Evidence, SessionLocal, User, create_tables
+        from db import Case, Evidence, SessionLocal, User, create_tables  # type: ignore[import]
         from sqlalchemy import select
         from shared.auth import hash_password
 
