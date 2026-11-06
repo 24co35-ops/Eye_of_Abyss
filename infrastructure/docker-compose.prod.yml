@@ -1,11 +1,21 @@
 version: "3.9"
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Eye of Abyss — Production Deployment Configuration
+# Eye of Abyss — Hardened Production Deployment Configuration
+# - Strict network isolation: db_tier is internal with no internet/host access
+# - No database or backend ports published to host; only Nginx (80/443) and optionally frontend
+# - Mandatory strong secrets via :? validation (fails startup if missing)
+# - TLS termination via Nginx with automated HTTP -> HTTPS redirection
 # ══════════════════════════════════════════════════════════════════════════════
 
+networks:
+  app_tier:
+    driver: bridge
+  db_tier:
+    internal: true
+
 services:
-  # ── Databases & Persistence ──────────────────────────────────────────────────
+  # ── Databases & Persistence (Isolated on db_tier, no host ports) ───────────
   postgres:
     image: postgres:15-alpine
     restart: unless-stopped
@@ -13,6 +23,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-eyeofabyss}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-eyeofabyss}
+    networks:
+      - db_tier
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
     healthcheck:
@@ -32,6 +44,8 @@ services:
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
       NEO4J_PLUGINS: '["apoc"]'
+    networks:
+      - db_tier
     volumes:
       - neo4j_prod_data:/data
     healthcheck:
@@ -48,11 +62,13 @@ services:
   redis:
     image: redis:7.2-alpine
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD:-}"
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}"
+    networks:
+      - db_tier
     volumes:
       - redis_prod_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -64,6 +80,8 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+    networks:
+      - db_tier
     volumes:
       - minio_prod_data:/data
     healthcheck:
@@ -71,6 +89,30 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ── Migrations + Seed (one-shot) ───────────────────────────────────────────
+  migrate:
+    build:
+      context: ../services/case-engine
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-eyeofabyss}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eyeofabyss}
+      PYTHONPATH: /shared:/app
+      SEED_OWNER_EMAIL: ${SEED_OWNER_EMAIL:-owner@eyeofabyss.local}
+      SEED_OWNER_PASSWORD: ${SEED_OWNER_PASSWORD:?Set SEED_OWNER_PASSWORD in .env}
+    networks:
+      - app_tier
+      - db_tier
+    volumes:
+      - ../shared:/shared:ro
+      - ../scripts:/scripts:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "alembic -c alembic.ini upgrade head &&
+             python /scripts/seed.py"
+    restart: "no"
 
   # ── Application Services ─────────────────────────────────────────────────────
   case-engine:
@@ -82,8 +124,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-eyeofabyss}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eyeofabyss}
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379/0
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379/0
       BLOCKCHAIN_NETWORK: ${BLOCKCHAIN_NETWORK:-polygon}
       POLYGON_RPC_URL: ${POLYGON_RPC_URL:-}
       PRIVATE_KEY: ${PRIVATE_KEY:-}
@@ -93,9 +135,15 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?Set JWT_REFRESH_SECRET in .env}
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS in .env}
+      INVITE_TOKEN: ${INVITE_TOKEN:-}
+      ALLOWED_WEBHOOK_DOMAINS: ${ALLOWED_WEBHOOK_DOMAINS:-}
       PYTHONPATH: /shared:/app
+    networks:
+      - app_tier
+      - db_tier
     volumes:
       - ../shared:/shared:ro
     depends_on:
@@ -103,6 +151,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -114,18 +164,54 @@ services:
           cpus: '1.5'
           memory: 1024M
 
+  case-engine-worker:
+    build:
+      context: ../services/case-engine
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-eyeofabyss}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eyeofabyss}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379/0
+      POLYGON_RPC_URL: ${POLYGON_RPC_URL:-}
+      PRIVATE_KEY: ${PRIVATE_KEY:-}
+      EVIDENCE_REGISTRY_ADDRESS: ${EVIDENCE_REGISTRY_ADDRESS:-}
+      PINATA_API_KEY: ${PINATA_API_KEY:-}
+      PINATA_SECRET_KEY: ${PINATA_SECRET_KEY:-}
+      PYTHONPATH: /shared:/app
+    networks:
+      - app_tier
+      - db_tier
+    volumes:
+      - ../shared:/shared:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: celery -A tasks.celery_app worker --loglevel=info
+
   voiceguard:
     build:
       context: ../services/voiceguard
     restart: unless-stopped
     environment:
       ENVIRONMENT: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-eyeofabyss}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eyeofabyss}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS in .env}
       PYTHONPATH: /shared:/app
+    networks:
+      - app_tier
+      - db_tier
     volumes:
       - ../shared:/shared:ro
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 15s
@@ -143,19 +229,28 @@ services:
     restart: unless-stopped
     environment:
       ENVIRONMENT: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-eyeofabyss}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eyeofabyss}
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379/0
       ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY:-}
       BLOCKSTREAM_API_URL: ${BLOCKSTREAM_API_URL:-https://blockstream.info/api}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS in .env}
       PYTHONPATH: /shared:/app
+    networks:
+      - app_tier
+      - db_tier
     volumes:
       - ../shared:/shared:ro
     depends_on:
       neo4j:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -166,14 +261,26 @@ services:
     restart: unless-stopped
     environment:
       ENVIRONMENT: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-eyeofabyss}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-eyeofabyss}
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:?Set CORS_ORIGINS in .env}
       PYTHONPATH: /shared:/app
+    networks:
+      - app_tier
+      - db_tier
     volumes:
       - ../shared:/shared:ro
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -185,15 +292,36 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_CASE_ENGINE_URL: http://localhost:8000
-      NEXT_PUBLIC_VOICEGUARD_URL: http://localhost:8001
-      NEXT_PUBLIC_CHAINEYE_URL: http://localhost:8002
-      NEXT_PUBLIC_SHADOWTRACE_URL: http://localhost:8003
+      NEXT_PUBLIC_CASE_ENGINE_URL: /api/cases
+      NEXT_PUBLIC_VOICEGUARD_URL: /api/voice
+      NEXT_PUBLIC_CHAINEYE_URL: /api/chain
+      NEXT_PUBLIC_SHADOWTRACE_URL: /api/shadow
     ports:
       - "3000:3000"
+    networks:
+      - app_tier
     depends_on:
       case-engine:
         condition: service_healthy
+
+  # ── Hardened Nginx Reverse Proxy (TLS Termination & Gateway) ─────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - app_tier
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - case-engine
+      - voiceguard
+      - shadowtrace
+      - chaineye
+      - frontend
 
 volumes:
   postgres_prod_data:

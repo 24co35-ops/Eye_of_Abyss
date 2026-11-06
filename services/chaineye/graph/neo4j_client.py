@@ -12,11 +12,24 @@ from typing import Any, Optional, Sequence
 from services.chaineye.graph.clustering import WalletCluster
 from services.chaineye.graph.explorer import TransactionRecord
 
+try:
+    from shared.runtime_config import is_production, validate_secret
+except ImportError:
+    try:
+        from runtime_config import is_production, validate_secret
+    except ImportError:
+        def is_production() -> bool: return False
+        def validate_secret(name, val, min_length=12, required=True): return val or ""
+
 logger = logging.getLogger("chaineye.neo4j")
 
 NEO4J_URI  = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASS = os.getenv("NEO4J_PASSWORD", "eyeofabyss_dev_2026")
+_raw_neo4j_pass = os.getenv("NEO4J_PASSWORD")
+if is_production():
+    NEO4J_PASS = validate_secret("NEO4J_PASSWORD", _raw_neo4j_pass, min_length=12, required=True)
+else:
+    NEO4J_PASS = validate_secret("NEO4J_PASSWORD", _raw_neo4j_pass or "eob-dev-neo4j-pass-32-chars-long", min_length=12, required=True)
 
 
 class Neo4jGraphClient:

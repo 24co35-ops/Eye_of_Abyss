@@ -1,15 +1,21 @@
 version: "3.9"
 
+networks:
+  app_tier:
+    driver: bridge
+  db_tier:
+    internal: true
+
 services:
-  # ── Databases ──────────────────────────────────────────────────────────────
+  # ── Databases & Persistence (Isolated on db_tier, no host ports) ───────────
   postgres:
     image: supabase/postgres:15.1.0.117
     environment:
       POSTGRES_USER: eyeofabyss
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eob_dev_pg_pass_32chars_long!}
       POSTGRES_DB: eyeofabyss
-    ports:
-      - "5432:5432"
+    networks:
+      - db_tier
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,15 +27,13 @@ services:
   neo4j:
     image: neo4j:5.19.0-community
     environment:
-      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-changeme}
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-eob_dev_neo4j_pass_32chars_long!}
       NEO4J_PLUGINS: '["apoc"]'
-    ports:
-      - "7474:7474"
-      - "7687:7687"
+    networks:
+      - db_tier
     volumes:
       - neo4j_data:/data
     healthcheck:
-      # Neo4j 5.x: bolt port is ready when this returns 200
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:7474 || exit 1"]
       interval: 15s
       timeout: 10s
@@ -38,10 +42,11 @@ services:
 
   redis:
     image: redis:7.2-alpine
-    ports:
-      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD:-eob_dev_redis_pass_32chars!}"
+    networks:
+      - db_tier
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-eob_dev_redis_pass_32chars!}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -50,11 +55,10 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-eob_dev_minio_user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-eob_dev_minio_root_pass_32chars!}
+    networks:
+      - db_tier
     volumes:
       - minio_data:/data
     healthcheck:
@@ -68,10 +72,13 @@ services:
     build:
       context: ../services/case-engine
     environment:
-      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-changeme}@postgres:5432/eyeofabyss
+      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-eob_dev_pg_pass_32chars_long!}@postgres:5432/eyeofabyss
       PYTHONPATH: /shared:/app
       SEED_OWNER_EMAIL: ${SEED_OWNER_EMAIL:-owner@eyeofabyss.local}
-      SEED_OWNER_PASSWORD: ${SEED_OWNER_PASSWORD:-changeme123}
+      SEED_OWNER_PASSWORD: ${SEED_OWNER_PASSWORD:-eob-dev-owner-pass-32-chars-long!}
+    networks:
+      - app_tier
+      - db_tier
     volumes:
       - ../shared:/shared:ro
       - ../scripts:/scripts:ro
@@ -83,29 +90,30 @@ services:
              python /scripts/seed.py || true"
     restart: "no"
 
-  # ── Backend Services ───────────────────────────────────────────────────────
+  # ── Backend Services (Protected behind Nginx, routed on app_tier) ─────────
   case-engine:
     build:
       context: ../services/case-engine
-    ports:
-      - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-changeme}@postgres:5432/eyeofabyss
+      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-eob_dev_pg_pass_32chars_long!}@postgres:5432/eyeofabyss
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-changeme}
-      REDIS_URL: redis://redis:6379
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-eob_dev_neo4j_pass_32chars_long!}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-eob_dev_redis_pass_32chars!}@redis:6379/0
       POLYGON_RPC_URL: ${POLYGON_RPC_URL:-}
       PRIVATE_KEY: ${PRIVATE_KEY:-}
       EVIDENCE_REGISTRY_ADDRESS: ${EVIDENCE_REGISTRY_ADDRESS:-}
       PINATA_API_KEY: ${PINATA_API_KEY:-}
       PINATA_SECRET_KEY: ${PINATA_SECRET_KEY:-}
-      JWT_SECRET: ${JWT_SECRET:-dev-secret}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret}
+      JWT_SECRET: ${JWT_SECRET:-eob-dev-secret-minimum-32-chars-long-jwt_secret}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-eob-dev-secret-minimum-32-chars-long-refresh}
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-eob_dev_minio_user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-eob_dev_minio_root_pass_32chars!}
       PYTHONPATH: /shared:/app
+    networks:
+      - app_tier
+      - db_tier
     volumes:
       - ../shared:/shared:ro
     depends_on:
@@ -121,14 +129,17 @@ services:
     build:
       context: ../services/case-engine
     environment:
-      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-changeme}@postgres:5432/eyeofabyss
-      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-eob_dev_pg_pass_32chars_long!}@postgres:5432/eyeofabyss
+      REDIS_URL: redis://:${REDIS_PASSWORD:-eob_dev_redis_pass_32chars!}@redis:6379/0
       POLYGON_RPC_URL: ${POLYGON_RPC_URL:-}
       PRIVATE_KEY: ${PRIVATE_KEY:-}
       EVIDENCE_REGISTRY_ADDRESS: ${EVIDENCE_REGISTRY_ADDRESS:-}
       PINATA_API_KEY: ${PINATA_API_KEY:-}
       PINATA_SECRET_KEY: ${PINATA_SECRET_KEY:-}
       PYTHONPATH: /shared:/app
+    networks:
+      - app_tier
+      - db_tier
     volumes:
       - ../shared:/shared:ro
     depends_on:
@@ -141,16 +152,17 @@ services:
   voiceguard:
     build:
       context: ../services/voiceguard
-    ports:
-      - "8001:8001"
     environment:
-      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-changeme}@postgres:5432/eyeofabyss
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-eob_dev_pg_pass_32chars_long!}@postgres:5432/eyeofabyss
+      REDIS_URL: redis://:${REDIS_PASSWORD:-eob_dev_redis_pass_32chars!}@redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-eob-dev-secret-minimum-32-chars-long-jwt_secret}
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-eob_dev_minio_user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-eob_dev_minio_root_pass_32chars!}
       PYTHONPATH: /shared:/app
+    networks:
+      - app_tier
+      - db_tier
     volumes:
       - ../shared:/shared:ro
     depends_on:
@@ -161,19 +173,20 @@ services:
   shadowtrace:
     build:
       context: ../services/shadowtrace
-    ports:
-      - "8002:8002"
     environment:
-      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-changeme}@postgres:5432/eyeofabyss
+      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-eob_dev_pg_pass_32chars_long!}@postgres:5432/eyeofabyss
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-changeme}
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-eob_dev_neo4j_pass_32chars_long!}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-eob_dev_redis_pass_32chars!}@redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-eob-dev-secret-minimum-32-chars-long-jwt_secret}
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-eob_dev_minio_user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-eob_dev_minio_root_pass_32chars!}
       PYTHONPATH: /shared:/app
+    networks:
+      - app_tier
+      - db_tier
     volumes:
       - ../shared:/shared:ro
     depends_on:
@@ -188,22 +201,23 @@ services:
   chaineye:
     build:
       context: ../services/chaineye
-    ports:
-      - "8003:8003"
     environment:
-      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-changeme}@postgres:5432/eyeofabyss
+      DATABASE_URL: postgresql://eyeofabyss:${POSTGRES_PASSWORD:-eob_dev_pg_pass_32chars_long!}@postgres:5432/eyeofabyss
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USER: neo4j
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-changeme}
-      REDIS_URL: redis://redis:6379
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-eob_dev_neo4j_pass_32chars_long!}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-eob_dev_redis_pass_32chars!}@redis:6379/0
       ALCHEMY_API_KEY: ${ALCHEMY_API_KEY:-}
       ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY:-}
       BLOCKSTREAM_API_KEY: ${BLOCKSTREAM_API_KEY:-}
-      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      JWT_SECRET: ${JWT_SECRET:-eob-dev-secret-minimum-32-chars-long-jwt_secret}
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-eob_dev_minio_user}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-eob_dev_minio_root_pass_32chars!}
       PYTHONPATH: /shared:/app
+    networks:
+      - app_tier
+      - db_tier
     volumes:
       - ../shared:/shared:ro
     depends_on:
@@ -222,23 +236,23 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Inside Docker, the browser JS runs on the HOST machine (not in the
-      # container), so NEXT_PUBLIC_* values must be reachable from the host.
-      # We route all API traffic through the nginx reverse proxy on port 80
-      # so the browser only ever calls one origin.
       NEXT_PUBLIC_CASE_ENGINE_URL: http://localhost/api/cases
       NEXT_PUBLIC_VOICEGUARD_URL: http://localhost/api/voice
       NEXT_PUBLIC_SHADOWTRACE_URL: http://localhost/api/shadow
       NEXT_PUBLIC_CHAINEYE_URL: http://localhost/api/chain
+    networks:
+      - app_tier
     depends_on:
       - case-engine
       - nginx
 
-  # ── Reverse Proxy ──────────────────────────────────────────────────────────
+  # ── Reverse Proxy (Only public gateway) ────────────────────────────────────
   nginx:
     image: nginx:1.25-alpine
     ports:
       - "80:80"
+    networks:
+      - app_tier
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:

@@ -15,6 +15,8 @@ from urllib.error import URLError
 
 from pydantic import BaseModel, Field, HttpUrl
 from shared.logging_config import setup_logger
+from shared.net_guard import UnsafeUrlError, assert_public_http_url
+from shared.runtime_config import is_production
 
 logger = setup_logger("eob.webhooks")
 
@@ -28,34 +30,76 @@ class WebhookSubscription(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
-# In-memory webhook store
+# Webhook store: persistent in Redis with in-memory fallback
+# ponytail: Redis hash 'eob:webhooks' provides multi-replica persistence without schema migrations
 _WEBHOOKS: dict[str, WebhookSubscription] = {}
+_REDIS_CLIENT = None
+
+
+def _get_redis():
+    global _REDIS_CLIENT
+    if _REDIS_CLIENT is None:
+        url = os.getenv("REDIS_URL")
+        if url:
+            try:
+                import redis
+                _REDIS_CLIENT = redis.from_url(url, socket_timeout=1.5, socket_connect_timeout=1.5, decode_responses=True)
+            except Exception:
+                _REDIS_CLIENT = None
+    return _REDIS_CLIENT
 
 
 def register_webhook(url: str, secret: str | None = None, events: list[str] | None = None) -> WebhookSubscription:
-    """Register a new webhook subscription."""
+    """Register a new webhook subscription. Private and metadata targets are rejected."""
+    try:
+        url = assert_public_http_url(url, https_only=is_production())
+    except UnsafeUrlError as exc:
+        raise ValueError(str(exc)) from exc
     sub = WebhookSubscription(
         url=url,
         secret=secret or hashlib.sha256(os.urandom(32)).hexdigest(),
         events=events or ["*"],
     )
-    _WEBHOOKS[sub.id] = sub
+    r = _get_redis()
+    if r:
+        try:
+            r.hset("eob:webhooks", sub.id, sub.model_dump_json())
+        except Exception:
+            _WEBHOOKS[sub.id] = sub
+    else:
+        _WEBHOOKS[sub.id] = sub
     logger.info(f"Registered webhook {sub.id} -> {url} for events: {sub.events}")
     return sub
 
 
 def list_webhooks() -> list[WebhookSubscription]:
     """List all active webhook subscriptions."""
+    r = _get_redis()
+    if r:
+        try:
+            items = r.hgetall("eob:webhooks")
+            if items:
+                return [WebhookSubscription.model_validate_json(v) for v in items.values()]
+        except Exception:
+            pass
     return list(_WEBHOOKS.values())
 
 
 def remove_webhook(sub_id: str) -> bool:
     """Remove a webhook subscription."""
+    r = _get_redis()
+    deleted = False
+    if r:
+        try:
+            deleted = bool(r.hdel("eob:webhooks", sub_id))
+        except Exception:
+            pass
     if sub_id in _WEBHOOKS:
         del _WEBHOOKS[sub_id]
+        deleted = True
+    if deleted:
         logger.info(f"Removed webhook {sub_id}")
-        return True
-    return False
+    return deleted
 
 
 def _send_webhook_sync(url: str, secret: str, payload_bytes: bytes, event_type: str) -> bool:
@@ -81,6 +125,7 @@ def _send_webhook_sync(url: str, secret: str, payload_bytes: bytes, event_type: 
     )
 
     try:
+        assert_public_http_url(url, https_only=is_production())
         with urlopen(req, timeout=5.0) as resp:
             return 200 <= resp.status < 300
     except Exception as exc:
@@ -98,7 +143,7 @@ async def dispatch_webhook_event(event_type: str, data: dict[str, Any]) -> int:
     payload_bytes = json.dumps(payload, default=str).encode("utf-8")
 
     matching = [
-        sub for sub in _WEBHOOKS.values()
+        sub for sub in list_webhooks()
         if sub.is_active and ("*" in sub.events or event_type in sub.events)
     ]
 

@@ -25,8 +25,8 @@ SHADOWTRACE_URL = os.getenv("SHADOWTRACE_URL", "http://localhost:8002")
 CHAINEYE_URL = os.getenv("CHAINEYE_URL", "http://localhost:8003")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-SEED_OWNER_EMAIL = os.getenv("SEED_OWNER_EMAIL", "ashwith@localhost")
-SEED_OWNER_PASSWORD = os.getenv("SEED_OWNER_PASSWORD", "1234567890")
+SEED_OWNER_EMAIL = os.getenv("SEED_OWNER_EMAIL", "owner@eyeofabyss.local")
+SEED_OWNER_PASSWORD = os.getenv("SEED_OWNER_PASSWORD", "eob-dev-owner-pass-32-chars-long!")
 
 results = {}
 

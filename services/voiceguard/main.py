@@ -54,14 +54,18 @@ from inference import (
 
 try:
     from shared.logging_config import setup_logger
-    from shared.middleware import SecurityHeadersMiddleware, RateLimitMiddleware, RequestLoggingMiddleware
+    from shared.middleware import SecurityHeadersMiddleware, RequestBodyLimitMiddleware, RateLimitMiddleware, RequestLoggingMiddleware
+    from shared.runtime_config import cors_origins, docs_kwargs
     logger = setup_logger("voiceguard")
 except Exception:
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("voiceguard")
     SecurityHeadersMiddleware = None
+    RequestBodyLimitMiddleware = None
     RateLimitMiddleware = None
     RequestLoggingMiddleware = None
+    cors_origins = lambda: ["http://localhost:3000"]
+    docs_kwargs = lambda: {}
 
 # ── In-memory job store ───────────────────────────────────────────────────────
 # ponytail: dict is fast for local & demo; easily backs multi-model re-analysis
@@ -85,16 +89,19 @@ app = FastAPI(
     version="1.0.0",
     description="Real-time AI voice deepfake detection with DistilWav2Vec2 + ECAPA-TDNN ensemble",
     lifespan=_lifespan,
+    **docs_kwargs(),
 )
 
 if SecurityHeadersMiddleware:
     app.add_middleware(SecurityHeadersMiddleware)
+    if RequestBodyLimitMiddleware:
+        app.add_middleware(RequestBodyLimitMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
+    allow_origins=cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -248,6 +255,15 @@ async def analyze_file(
     data = await file.read()
     if len(data) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="File exceeds 50 MB limit")
+
+    try:
+        from shared.storage import validate_file_content, scan_for_malware
+        validate_file_content(data, file.filename or "audio.wav")
+        scan_for_malware(data, file.filename or "audio.wav")
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception:
+        pass
 
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {"status": "processing", "raw_data": data, "filename": file.filename}

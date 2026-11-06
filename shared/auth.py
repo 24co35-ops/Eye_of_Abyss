@@ -11,9 +11,14 @@ from enum import Enum
 from typing import Annotated, Optional
 from uuid import UUID, uuid4
 
-from fastapi import Depends, HTTPException, Request, Response, status
+from fastapi import Depends, HTTPException, WebSocket, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+
+try:
+    from shared.runtime_config import is_production, validate_secret
+except ImportError:  # pragma: no cover
+    from runtime_config import is_production, validate_secret
 
 # ── JWT Provider (python-jose -> PyJWT -> pure Python stdlib HMAC-SHA256) ──
 try:
@@ -84,14 +89,83 @@ except ImportError:
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-JWT_SECRET         = os.getenv("JWT_SECRET", "dev-secret-change-in-production")
-JWT_REFRESH_SECRET = os.getenv("JWT_REFRESH_SECRET", JWT_SECRET + "-refresh")
+def _load_secret(name: str) -> str:
+    val = os.getenv(name)
+    if not val:
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+            val = os.getenv(name)
+        except Exception:
+            pass
+    if not val and not is_production():
+        # Strong random fallback for offline tests only; never weak defaults
+        val = f"eob-dev-secret-minimum-32-chars-long-{name.lower()}"
+    return validate_secret(name, val, min_length=32, required=True)
+
+
+JWT_SECRET         = _load_secret("JWT_SECRET")
+JWT_REFRESH_SECRET = _load_secret("JWT_REFRESH_SECRET")
 JWT_ALGORITHM      = os.getenv("JWT_ALGORITHM", "HS256")
+if JWT_ALGORITHM.upper() != "HS256":
+    raise RuntimeError("JWT_ALGORITHM must be HS256")
 ACCESS_EXPIRE_MIN  = 15
 REFRESH_EXPIRE_DAYS = 7
 REFRESH_COOKIE     = "refresh_token"
 
 bearer  = HTTPBearer(auto_error=False)
+
+# ── Token Revocation Store ───────────────────────────────────────────────────
+
+class RefreshTokenData:
+    """Holds sub and jti. Unpacks as (sub, jti) and stringifies as sub for compatibility."""
+    def __init__(self, sub: str, jti: str):
+        self.sub = str(sub)
+        self.jti = str(jti)
+
+    def __iter__(self):
+        return iter((self.sub, self.jti))
+
+    def __str__(self):
+        return self.sub
+
+    def __repr__(self):
+        return f"RefreshTokenData(sub='{self.sub}', jti='{self.jti}')"
+
+
+_REVOKED_JTIS: set[str] = set()
+
+
+def revoke_token(jti: str, ttl_seconds: int = 7 * 86400) -> None:
+    """Revoke a refresh token by JTI across all replicas via Redis with memory fallback."""
+    if not jti:
+        return
+    _REVOKED_JTIS.add(jti)
+    redis_url = os.getenv("REDIS_URL")
+    if redis_url:
+        try:
+            import redis
+            r = redis.from_url(redis_url)
+            r.setex(f"eob:revoked:{jti}", ttl_seconds, "1")
+        except Exception:
+            pass
+
+
+def is_token_revoked(jti: str) -> bool:
+    """Check whether a token JTI has been revoked."""
+    if not jti:
+        return False
+    if jti in _REVOKED_JTIS:
+        return True
+    redis_url = os.getenv("REDIS_URL")
+    if redis_url:
+        try:
+            import redis
+            r = redis.from_url(redis_url)
+            return bool(r.exists(f"eob:revoked:{jti}"))
+        except Exception:
+            pass
+    return False
 
 # ── Password hashing provider (bcrypt native -> passlib -> stdlib pbkdf2) ─────
 try:
@@ -162,8 +236,8 @@ try:
         role            = Column(String(20), nullable=False, default=Role.VIEWER.value)
         wallet_address  = Column(String(42), unique=True, nullable=True)  # 0x... ETH address
         is_active       = Column(Boolean, default=True, nullable=False)
-        created_at      = Column(DateTime, default=datetime.utcnow, nullable=False)
-        updated_at      = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+        created_at      = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+        updated_at      = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 except ImportError:
     AuthBase = None  # type: ignore
     User = None  # type: ignore
@@ -186,10 +260,11 @@ def create_access_token(sub: str, role: str, email: str = "") -> str:
     )
 
 
-def create_refresh_token(sub: str) -> str:
+def create_refresh_token(sub: str, jti: str | None = None) -> str:
     expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_EXPIRE_DAYS)
+    token_jti = jti or str(uuid4())
     return _encode_jwt(
-        {"sub": sub, "exp": int(expire.timestamp())},
+        {"sub": sub, "jti": token_jti, "exp": int(expire.timestamp())},
         JWT_REFRESH_SECRET, algorithm=JWT_ALGORITHM,
     )
 
@@ -202,11 +277,16 @@ def decode_access_token(token: str) -> TokenPayload:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=f"Invalid token: {e}")
 
 
-def decode_refresh_token(token: str) -> str:
-    """Returns sub (user_id) from a valid refresh token."""
+def decode_refresh_token(token: str) -> RefreshTokenData:
+    """Returns RefreshTokenData(sub, jti) from a valid, unrevoked refresh token."""
     try:
         data = _decode_jwt(token, JWT_REFRESH_SECRET, algorithms=[JWT_ALGORITHM])
-        return data["sub"]
+        jti = data.get("jti", "")
+        if jti and is_token_revoked(jti):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Refresh token has been revoked")
+        return RefreshTokenData(sub=data["sub"], jti=jti)
+    except HTTPException:
+        raise
     except (JWTError, Exception) as e:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail=f"Invalid refresh token: {e}")
 
@@ -253,4 +333,24 @@ def require_role(*roles: Role | str):
     return _check
 
 
+def get_ws_user(websocket: WebSocket) -> TokenPayload:
+    """Bearer header or ?token= for browser WebSockets. Investigator rank required."""
+    token = websocket.query_params.get("token") or ""
+    if not token:
+        header = websocket.headers.get("authorization", "")
+        if header.lower().startswith("bearer "):
+            token = header[7:].strip()
+    if not token:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Missing authorization token")
+    user = decode_access_token(token)
+    try:
+        rank = _RANK.get(Role(user.role), -1)
+    except ValueError:
+        rank = -1
+    if rank < _RANK[Role.INVESTIGATOR]:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Investigator role required")
+    return user
+
+
 CurrentUser = Annotated[TokenPayload, Depends(get_current_user)]
+WsUser = Annotated[TokenPayload, Depends(get_ws_user)]

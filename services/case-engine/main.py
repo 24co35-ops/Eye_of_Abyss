@@ -7,15 +7,15 @@ import json
 import os
 import sys
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated
 
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Make shared package and local service directory importable
@@ -32,7 +32,8 @@ try:
         ModuleEvidence,
     )
     from shared.logging_config import setup_logger
-    from shared.middleware import SecurityHeadersMiddleware, RateLimitMiddleware, RequestLoggingMiddleware
+    from shared.middleware import SecurityHeadersMiddleware, RequestBodyLimitMiddleware, RateLimitMiddleware, RequestLoggingMiddleware
+    from shared.runtime_config import cors_origins, docs_kwargs, is_production
     from shared.webhooks import register_webhook, list_webhooks, remove_webhook, dispatch_webhook_event, WebhookSubscription
     from shared.plugins import register_module, list_modules, get_module, check_module_health, ModuleManifest
     from shared.case_transfer import export_case_package, import_case_package
@@ -46,7 +47,16 @@ except ImportError:
         ModuleEvidence,
     )
     from logging_config import setup_logger  # type: ignore
-    from middleware import SecurityHeadersMiddleware, RateLimitMiddleware, RequestLoggingMiddleware  # type: ignore
+    try:
+        from middleware import SecurityHeadersMiddleware, RequestBodyLimitMiddleware, RateLimitMiddleware, RequestLoggingMiddleware  # type: ignore
+    except ImportError:
+        SecurityHeadersMiddleware = RequestBodyLimitMiddleware = RateLimitMiddleware = RequestLoggingMiddleware = None  # type: ignore
+    try:
+        from runtime_config import cors_origins, docs_kwargs, is_production  # type: ignore
+    except ImportError:
+        def cors_origins(): return ["http://localhost:3000"]
+        def docs_kwargs(): return {}
+        def is_production(): return False
     from webhooks import register_webhook, list_webhooks, remove_webhook, dispatch_webhook_event, WebhookSubscription  # type: ignore
     from plugins import register_module, list_modules, get_module, check_module_health, ModuleManifest  # type: ignore
     from case_transfer import export_case_package, import_case_package  # type: ignore
@@ -90,15 +100,17 @@ app = FastAPI(
     version="1.0.0",
     description="Investigation orchestrator & evidence ledger — Eye of Abyss",
     lifespan=lifespan,
+    **docs_kwargs(),
 )
 
 # Hardened middlewares
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestBodyLimitMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
+    allow_origins=cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -135,6 +147,20 @@ async def ready(db: DB):
 
 
 
+# ── Case Scoping Helper ───────────────────────────────────────────────────────
+
+def _can_access_case(case: Case, user: TokenPayload) -> bool:
+    """Supervisors and Owners see all cases. Investigators/viewers see assigned/created only."""
+    if user.role in (Role.SUPERVISOR.value, Role.OWNER.value):
+        return True
+    if case.created_by in (user.sub, user.email):
+        return True
+    assigned = case.modules_assigned or []
+    if user.sub in assigned or user.email in assigned:
+        return True
+    return False
+
+
 # ── Cases ─────────────────────────────────────────────────────────────────────
 
 @app.post("/cases", status_code=status.HTTP_201_CREATED, tags=["cases"])
@@ -150,7 +176,7 @@ async def create_case(
         complainant_type=body.complainant_type,
         reported_loss=body.reported_loss,
         modules_assigned=body.modules_assigned,
-        audit_log=[{"ts": datetime.utcnow().isoformat(), "actor": user.sub, "action": "CREATED"}],
+        audit_log=[{"ts": datetime.now(timezone.utc).isoformat(), "actor": user.sub, "action": "CREATED"}],
     )
     db.add(case)
     await db.commit()
@@ -159,8 +185,23 @@ async def create_case(
 
 
 @app.get("/cases", tags=["cases"])
-async def list_cases(db: DB, user: CurrentUser):
-    rows = (await db.execute(select(Case))).scalars().all()
+async def list_cases(
+    db: DB,
+    user: CurrentUser,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    if user.role in (Role.SUPERVISOR.value, Role.OWNER.value):
+        stmt = select(Case).order_by(Case.created_at.desc()).limit(limit).offset(offset)
+    else:
+        stmt = (
+            select(Case)
+            .where(or_(Case.created_by == user.sub, Case.created_by == user.email))
+            .order_by(Case.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    rows = (await db.execute(stmt)).scalars().all()
     results = []
     for c in rows:
         ev_count = len((await db.execute(
@@ -173,6 +214,8 @@ async def list_cases(db: DB, user: CurrentUser):
 @app.get("/cases/{case_id}", tags=["cases"])
 async def get_case(case_id: str, db: DB, user: CurrentUser):
     case = await _get_case_or_404(case_id, db)
+    if not _can_access_case(case, user):
+        raise HTTPException(status_code=403, detail="Forbidden: You are not assigned to or creator of this case")
     ev_count = len((await db.execute(
         select(Evidence).where(Evidence.case_id == case.case_id)
     )).scalars().all())
@@ -189,6 +232,8 @@ async def submit_evidence(
     user: CurrentUser,
 ):
     case = await _get_case_or_404(case_id, db)
+    if not _can_access_case(case, user):
+        raise HTTPException(status_code=403, detail="Forbidden: You are not authorized to submit evidence to this case")
 
     # Build canonical dict and hash it
     ev_dict = body.model_dump(mode="json")
@@ -231,7 +276,7 @@ async def submit_evidence(
     next_status = auto_advance(case.status, submitted_modules, case.modules_assigned or [])
     if next_status:
         case.status = next_status
-        case.updated_at = datetime.utcnow()
+        case.updated_at = datetime.now(timezone.utc)
         _append_audit(case, user.sub, f"AUTO_ADVANCE -> {next_status}")
 
     await db.commit()
@@ -259,6 +304,8 @@ async def submit_evidence(
 @app.get("/cases/{case_id}/convergence", tags=["convergence"])
 async def get_convergence(case_id: str, db: DB, user: CurrentUser):
     case = await _get_case_or_404(case_id, db)
+    if not _can_access_case(case, user):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have access to this case")
     if not case.convergence:
         return {"case_id": case_id, "convergence": None, "note": "Not yet computed"}
     return {"case_id": case_id, "convergence": case.convergence}
@@ -274,6 +321,8 @@ async def anchor_case(
 ):
     """SUPERVISOR+ — triggers Polygon anchoring for all unanchored evidence."""
     case = await _get_case_or_404(case_id, db)
+    if not _can_access_case(case, user):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have access to this case")
 
     if case.status not in ("READY_TO_ANCHOR", "CONVERGENCE_COMPUTED", "EVIDENCE_SUBMITTED"):
         raise HTTPException(status_code=400, detail=f"Cannot anchor from status '{case.status}'. Approve first.")
@@ -302,7 +351,7 @@ async def anchor_case(
             pass
 
     case.status = "READY_TO_ANCHOR"
-    case.updated_at = datetime.utcnow()
+    case.updated_at = datetime.now(timezone.utc)
     await _audit(db, case, user.sub, "ANCHOR_TRIGGERED", {"evidence_queued": queued})
     await db.commit()
 
@@ -318,6 +367,8 @@ async def anchor_case(
 async def verify_evidence(case_id: str, evidence_id: str, db: DB, user: CurrentUser):
     """Verifies on-chain anchoring status of an evidence item against EvidenceRegistry."""
     case = await _get_case_or_404(case_id, db)
+    if not _can_access_case(case, user):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have access to this case")
     try:
         ev_uid = uuid.UUID(evidence_id)
     except ValueError:
@@ -359,7 +410,7 @@ async def approve_case(
     if case.status not in allowed:
         raise HTTPException(status_code=400, detail=f"Cannot approve from status '{case.status}'")
     case.status = "READY_TO_ANCHOR"
-    case.updated_at = datetime.utcnow()
+    case.updated_at = datetime.now(timezone.utc)
     await _audit(db, case, user.sub, "APPROVED_FOR_ANCHORING")
     await db.commit()
     return {"case_id": case_id, "status": case.status}
@@ -375,6 +426,8 @@ async def export_case(
 ):
     """Return PDF bytes directly as a streaming response."""
     case = await _get_case_or_404(case_id, db)
+    if not _can_access_case(case, user):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have access to this case")
     rows = (await db.execute(select(Evidence).where(Evidence.case_id == case.case_id))).scalars().all()
     audit_rows = (await db.execute(
         select(AuditLog).where(AuditLog.case_id == case.case_id)
@@ -423,6 +476,8 @@ async def freeze_request(
 ):
     """Return freeze-request draft as JSON or PDF."""
     case = await _get_case_or_404(case_id, db)
+    if not _can_access_case(case, user):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have access to this case")
     rows = (await db.execute(select(Evidence).where(Evidence.case_id == case.case_id))).scalars().all()
     audit_rows = (await db.execute(select(AuditLog).where(AuditLog.case_id == case.case_id))).scalars().all()
 
@@ -461,6 +516,8 @@ async def freeze_request(
 async def get_audit_log(case_id: str, db: DB, user: CurrentUser):
     """Return full audit trail from AuditLog table."""
     case = await _get_case_or_404(case_id, db)
+    if not _can_access_case(case, user):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have access to this case")
     rows = (await db.execute(
         select(AuditLog).where(AuditLog.case_id == case.case_id)
     )).scalars().all()
@@ -481,13 +538,15 @@ async def manual_transition(
     user: Annotated[TokenPayload, Depends(require_role(Role.SUPERVISOR, Role.OWNER))],
 ):
     case = await _get_case_or_404(case_id, db)
+    if not _can_access_case(case, user):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have access to this case")
     try:
         new_status = transition(case.status, target_status)
     except InvalidTransition as e:
         raise HTTPException(status_code=400, detail=str(e))
 
     case.status = new_status
-    case.updated_at = datetime.utcnow()
+    case.updated_at = datetime.now(timezone.utc)
     _append_audit(case, user.sub, f"MANUAL -> {new_status}")
     await db.commit()
     return {"case_id": case_id, "status": case.status}
@@ -558,6 +617,8 @@ async def delete_webhook(
 async def download_case_package(case_id: str, db: DB, user: CurrentUser):
     """Export complete case package (metadata + evidence + proofs + artifacts) as a signed ZIP archive."""
     case = await _get_case_or_404(case_id, db)
+    if not _can_access_case(case, user):
+        raise HTTPException(status_code=403, detail="Forbidden: You do not have access to this case")
     rows = (await db.execute(select(Evidence).where(Evidence.case_id == case.case_id))).scalars().all()
     
     case_dict = {
@@ -633,7 +694,7 @@ async def import_case(
         modules_assigned=case_dict.get("modules_assigned", []),
         convergence=case_dict.get("convergence"),
         anchor_tx_hashes=case_dict.get("anchor_tx_hashes", []),
-        audit_log=case_dict.get("audit_log", []) + [{"ts": datetime.utcnow().isoformat(), "actor": user.sub, "action": "IMPORTED_PACKAGE"}],
+        audit_log=case_dict.get("audit_log", []) + [{"ts": datetime.now(timezone.utc).isoformat(), "actor": user.sub, "action": "IMPORTED_PACKAGE"}],
     )
     db.add(case)
     
@@ -693,7 +754,7 @@ def _case_response(case: Case, evidence_count: int) -> dict:
 
 def _append_audit(case: Case, actor: str, action: str):
     log = list(case.audit_log or [])
-    log.append({"ts": datetime.utcnow().isoformat(), "actor": actor, "action": action})
+    log.append({"ts": datetime.now(timezone.utc).isoformat(), "actor": actor, "action": action})
     case.audit_log = log
 
 
@@ -705,7 +766,7 @@ async def _audit(db: AsyncSession, case: Case, actor: str, action: str, detail: 
         actor=actor,
         action=action,
         detail=detail or {},
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
     ))
 
 

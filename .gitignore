@@ -48,5 +48,8 @@ Thumbs.db
 
 # Databases & local test DBs
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3

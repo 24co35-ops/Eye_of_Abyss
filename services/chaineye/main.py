@@ -69,29 +69,36 @@ except ImportError:
 
 try:
     from shared.logging_config import setup_logger
-    from shared.middleware import SecurityHeadersMiddleware, RateLimitMiddleware, RequestLoggingMiddleware
+    from shared.middleware import SecurityHeadersMiddleware, RequestBodyLimitMiddleware, RateLimitMiddleware, RequestLoggingMiddleware
+    from shared.runtime_config import cors_origins, docs_kwargs
     logger = setup_logger("chaineye")
 except Exception:
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger("chaineye")
     SecurityHeadersMiddleware = None
+    RequestBodyLimitMiddleware = None
     RateLimitMiddleware = None
     RequestLoggingMiddleware = None
+    cors_origins = lambda: ["http://localhost:3000"]
+    docs_kwargs = lambda: {}
 
 app = FastAPI(
     title="ChainEye Forensics Service",
     version="1.0.0",
     description="Cryptocurrency transaction tracking, GNN entity attribution, and withdrawal prediction",
+    **docs_kwargs(),
 )
 
 if SecurityHeadersMiddleware:
     app.add_middleware(SecurityHeadersMiddleware)
+    if RequestBodyLimitMiddleware:
+        app.add_middleware(RequestBodyLimitMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
+    allow_origins=cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 from pydantic import BaseModel, Field
 
 from shared.logging_config import setup_logger
+from shared.net_guard import UnsafeUrlError, assert_health_path, assert_module_endpoint
 
 logger = setup_logger("eob.plugins")
 
@@ -48,7 +49,7 @@ _DEFAULT_MODULES: dict[str, ModuleManifest] = {
         name="ChainEye",
         description="Multi-chain crypto forensics, clustering, and withdrawal prediction",
         version="1.0.0",
-        endpoint_url=os.getenv("CHAINEYE_URL", "http://localhost:8002"),
+        endpoint_url=os.getenv("CHAINEYE_URL", "http://localhost:8003"),
         icon="Network",
         capabilities=["utxo_clustering", "vasp_attribution", "withdrawal_prediction"],
         accepted_input_types=["crypto/address", "crypto/tx_hash"],
@@ -58,7 +59,7 @@ _DEFAULT_MODULES: dict[str, ModuleManifest] = {
         name="ShadowTrace",
         description="Dark web linguistic profiling and actor persona attribution",
         version="1.0.0",
-        endpoint_url=os.getenv("SHADOWTRACE_URL", "http://localhost:8003"),
+        endpoint_url=os.getenv("SHADOWTRACE_URL", "http://localhost:8002"),
         icon="Fingerprint",
         capabilities=["stylometry", "temporal_correlation", "actor_graph"],
         accepted_input_types=["text/plain", "actor/handle"],
@@ -70,6 +71,11 @@ _REGISTRY: dict[str, ModuleManifest] = dict(_DEFAULT_MODULES)
 
 def register_module(manifest: ModuleManifest) -> ModuleManifest:
     """Register or update a module in the registry."""
+    try:
+        manifest.endpoint_url = assert_module_endpoint(manifest.endpoint_url)
+        manifest.health_endpoint = assert_health_path(manifest.health_endpoint)
+    except UnsafeUrlError as exc:
+        raise ValueError(str(exc)) from exc
     _REGISTRY[manifest.module_id] = manifest
     logger.info(f"Registered plugin module '{manifest.module_id}' ({manifest.name}) at {manifest.endpoint_url}")
     return manifest
@@ -91,7 +97,12 @@ def check_module_health(module_id: str) -> dict[str, Any]:
     if not manifest:
         return {"status": "not_found", "module_id": module_id}
     
-    url = f"{manifest.endpoint_url.rstrip('/')}/{manifest.health_endpoint.lstrip('/')}"
+    try:
+        base = assert_module_endpoint(manifest.endpoint_url)
+        health = assert_health_path(manifest.health_endpoint)
+    except UnsafeUrlError as exc:
+        return {"status": "rejected", "error": str(exc), "module_id": module_id}
+    url = f"{base.rstrip('/')}{health}"
     try:
         req = Request(url, headers={"User-Agent": "EyeOfAbyss-PluginManager/1.0"})
         with urlopen(req, timeout=3.0) as resp:

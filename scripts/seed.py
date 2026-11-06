@@ -18,11 +18,21 @@ sys.path.insert(0, str(_ROOT / "services" / "case-engine"))
 sys.path.insert(0, "/app")
 sys.path.insert(0, "/shared")
 
+try:
+    from shared.runtime_config import is_production, validate_secret
+except ImportError:
+    from runtime_config import is_production, validate_secret
+
 from shared.schemas import Artifact, CaseFile, CrossModuleSignals, EvidenceObject
 
 # ── Owner account seeding ─────────────────────────────────────────────────────
-SEED_OWNER_EMAIL    = os.getenv("SEED_OWNER_EMAIL", "owner@eyeofabyss.local")
-SEED_OWNER_PASSWORD = os.getenv("SEED_OWNER_PASSWORD", "changeme123")
+SEED_OWNER_EMAIL = os.getenv("SEED_OWNER_EMAIL", "owner@eyeofabyss.local")
+_dev_default_pwd = "eob-dev-owner-pass-32-chars-long!"
+_raw_pwd = os.getenv("SEED_OWNER_PASSWORD")
+if is_production():
+    SEED_OWNER_PASSWORD = validate_secret("SEED_OWNER_PASSWORD", _raw_pwd, min_length=16, required=True)
+else:
+    SEED_OWNER_PASSWORD = validate_secret("SEED_OWNER_PASSWORD", _raw_pwd or _dev_default_pwd, min_length=12, required=True)
 
 # Exact cases from Stitch prompts (Prompts 1, 2, 3, 4, 5)
 SEED_CASES = [
@@ -303,9 +313,10 @@ async def seed_database():
                         )
                         db.add(e)
             await db.commit()
-        print("  [+] PostgreSQL database seeded with active demo cases.")
+        print("  [+] Database seeded with active demo cases.")
     except Exception as exc:
-        print(f"  [-] Database direct connection skipped ({exc}). Static cache ready.")
+        print(f"  [!] FATAL: Seeding database and OWNER account failed: {exc}", file=sys.stderr)
+        raise exc
 
     print("=" * 60)
     print("  Seed Complete -- 5 Canonical Cases + OWNER account ready")

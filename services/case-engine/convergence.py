@@ -10,11 +10,20 @@ import logging
 import os
 from typing import Optional
 
+try:
+    from shared.runtime_config import is_production, validate_secret
+except ImportError:
+    from runtime_config import is_production, validate_secret
+
 logger = logging.getLogger("case_engine.convergence")
 
 NEO4J_URI      = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USER     = os.getenv("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "changeme")
+_raw_neo4j_pwd = os.getenv("NEO4J_PASSWORD")
+if is_production():
+    NEO4J_PASSWORD = validate_secret("NEO4J_PASSWORD", _raw_neo4j_pwd, min_length=12, required=True)
+else:
+    NEO4J_PASSWORD = validate_secret("NEO4J_PASSWORD", _raw_neo4j_pwd or "eob-dev-neo4j-pass-32-chars-long", min_length=12, required=True)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

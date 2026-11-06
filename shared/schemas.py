@@ -1,10 +1,15 @@
 """Shared Pydantic schemas for Eye of Abyss — copied from design-doc.md."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal, Optional
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
+
+
+def utc_now() -> datetime:
+    """Return timezone-aware current UTC datetime."""
+    return datetime.now(timezone.utc)
 
 
 class Artifact(BaseModel):
@@ -26,7 +31,7 @@ class EvidenceObject(BaseModel):
     evidence_id: UUID = Field(default_factory=uuid4)
     case_id: Optional[UUID] = None
     module_id: str = Field(..., description="Module identifier (voiceguard, shadowtrace, chaineye, or custom plugin)")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
     created_by: str = "SYSTEM"  # Officer ID or service
 
     # Verdict
@@ -43,7 +48,7 @@ class EvidenceObject(BaseModel):
 
     # Chain of custody
     submitted_by: str = "SYSTEM"
-    submitted_at: datetime = Field(default_factory=datetime.utcnow)
+    submitted_at: datetime = Field(default_factory=utc_now)
     hash_sha256: str = ""
     chain_anchor: Optional[str] = None  # Polygon tx hash
     ipfs_cid: Optional[str] = None
@@ -73,8 +78,8 @@ class CaseFile(BaseModel):
         "CONVERGENCE_COMPUTED", "READY_TO_ANCHOR",
         "ANCHORED", "FILED", "CLOSED"
     ] = "CREATED"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
     created_by: str
     complainant_type: str = ""
     reported_loss: Optional[str] = None
@@ -92,7 +97,7 @@ class ModuleEvidence(BaseModel):
     confidence: float        # 0.0 – 1.0
     verdict: str             # Human-readable
     artifacts: list[Artifact] = Field(default_factory=list)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=utc_now)
     chain_anchor: Optional[str] = None  # Polygon tx hash, once anchored
 
 
@@ -124,6 +129,7 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     role: str = "VIEWER"   # default; OWNER can promote later
+    invite_token: Optional[str] = None
 
 
 class LoginRequest(BaseModel):

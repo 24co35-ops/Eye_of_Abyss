@@ -61,14 +61,58 @@
 
 ---
 
-## System Hardening & Operational Features
+## Security Hardening & Architecture
 
-- **Structured Logging**: JSON-formatted output in production (`shared.logging_config`), colored timestamps in development.
-- **Security Middleware**: Automatic injection of `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, and HSTS headers.
-- **Rate Limiting**: Sliding-window rate limiter per IP / JWT token across all public API endpoints.
-- **Probes**: `/health` (liveness) and `/ready` (deep dependency checks) on every microservice.
-- **Graceful Lifecycle**: FastAPI async lifespans for clean shutdown and resource cleanup.
-- **Strict Environment Configuration**: Zero hardcoded secrets; full runtime configuration via `.env`.
+Eye of Abyss is hardened according to enterprise cyberdefense standards:
+
+### 1. Secrets & Runtime Validation
+- **Fail-Fast Startup**: Services immediately reject missing, default (`changeme`), or weak credentials with strict minimum length (16-32 chars) and character entropy checks.
+- **Zero Default Secrets**: Development fallbacks are high-entropy deterministic hashes; production mode requires all secrets to be explicitly provided in `.env`.
+
+### 2. Authentication & Authorization Scoping
+- **Role Hierarchy**: Strict permission gates (`OWNER` > `SUPERVISOR` > `INVESTIGATOR` > `VIEWER`). Only `OWNER` can provision `OWNER` or `SUPERVISOR` accounts.
+- **Registration Controls**: Public `/auth/register` requires a cryptographically random `INVITE_TOKEN` in production or is disabled entirely. Public wallet auto-registration is disabled in production.
+- **Refresh Token Rotation & Revocation**: Refresh tokens carry unique JTIs and are tracked in Redis/DB with automatic revocation upon rotation or logout.
+- **Cookie Security**: Auth cookies are enforced with `HttpOnly`, `SameSite=Strict`, and `Secure` flags.
+- **Case Access Scoping**: Regular investigators only view cases they created or are assigned to; supervisors and owners retain audit-level visibility.
+
+### 3. Network Isolation & Infrastructure Defense
+- **Docker Network Segmentation**: Two distinct networks — `app_tier` (bridge) and `db_tier` (`internal: true`). Databases cannot access the public internet or be accessed directly from outside Docker.
+- **No Database Ports Published**: PostgreSQL (5432), Neo4j (7474/7687), Redis (6379), and MinIO (9000/9001) are unexposed to the host machine.
+- **Redis AUTH**: Redis is protected by mandatory authentication passwords (`--requirepass`).
+- **Nginx Reverse Proxy & TLS**: Single point of ingress on port 80/443 terminating TLSv1.2/1.3, enforcing HTTP-to-HTTPS redirection, and serving strict headers.
+
+### 4. Middleware & Abuse Protection
+- **Sliding-Window Rate Limiting**: Distributed Redis-backed rate limiting with sliding-window ZSET counters across replicas.
+- **Request Body & Upload Limits**: Hard 50MB payload limits enforced at both Nginx and ASGI middleware (`RequestBodyLimitMiddleware`).
+- **SSRF Defense for Webhooks**: Webhook dispatch blocks private/loopback/reserved CIDR blocks, requires HTTPS, and checks an optional domain allowlist (`ALLOWED_WEBHOOK_DOMAINS`).
+- **Persistent Webhook Storage**: Webhook subscriptions persist in Redis/Postgres rather than volatile memory.
+- **Security Headers**: Injects `Content-Security-Policy`, `Strict-Transport-Security`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Referrer-Policy`.
+
+### 5. Storage & File Security
+- **File Validation**: Uploaded files undergo extension blocklist inspection, MIME type verification, and magic-byte signature validation (audio/pdf/images).
+- **Malware Scanning Hook**: Optional ClamAV antivirus integration and embedded executable/script detection.
+- **S3 Bucket Hardening**: Enforces SSE-S3 bucket encryption and blocks public ACL access.
+
+### 6. Smart Contract Integrity
+- **AccessControl / Ownable**: Only authorized relayer or owner addresses can invoke `anchor()` in `EvidenceRegistry.sol`.
+- **Emergency Circuit Breaker**: Contract features pause/unpause functionality and emits indexed `EvidenceAnchored(caseId, sha256, cid, submittedBy)` events for on-chain auditability.
+
+---
+
+## Production Readiness Checklist
+
+Before taking Eye of Abyss to production, verify each requirement:
+
+- [ ] **Generate Secrets**: Run `openssl rand -hex 32` for `JWT_SECRET`, `JWT_REFRESH_SECRET`, `POSTGRES_PASSWORD`, `NEO4J_PASSWORD`, `REDIS_PASSWORD`, `MINIO_ROOT_PASSWORD`, and `SEED_OWNER_PASSWORD`.
+- [ ] **Set Environment Flag**: Confirm `ENVIRONMENT=production` in `.env`.
+- [ ] **Configure CORS**: Define explicit trusted domains in `CORS_ORIGINS` (wildcards will trigger startup rejection).
+- [ ] **Lock Registration**: Generate an `INVITE_TOKEN` and ensure `ALLOW_WALLET_AUTOREGISTER=false`.
+- [ ] **TLS Certificates**: Place valid SSL certificates (`fullchain.pem` and `privkey.pem`) into `infrastructure/certs/`.
+- [ ] **Port Audit**: Confirm only port 80 and 443 are publicly accessible. Verify database ports (5432, 7474, 7687, 6379, 9000, 9001) are unreachable from the host.
+- [ ] **Webhooks**: Define `ALLOWED_WEBHOOK_DOMAINS` for third-party SIEM/alert integrations.
+- [ ] **Smart Contract**: Deploy `EvidenceRegistry.sol` to your EVM network, grant the relayer key permission via `setRelayer()`, and set `EVIDENCE_REGISTRY_ADDRESS`.
+- [ ] **Health Probes**: Verify all services return HTTP 200 on `/health/cases`, `/health/voice`, `/health/shadow`, and `/health/chain`.
 
 ---
 

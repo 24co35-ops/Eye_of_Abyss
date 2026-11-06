@@ -6,27 +6,33 @@ Delegates crypto to shared.auth; stores users in PostgreSQL via db.User.
 from __future__ import annotations
 
 import os
-from datetime import datetime
-from typing import Annotated, List
+from datetime import datetime, timezone
+from typing import Annotated, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Response, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # shared is on PYTHONPATH in all containers
 from shared.auth import (
     Role,
     TokenPayload,
+    bearer,
     create_access_token,
     create_refresh_token,
+    decode_access_token,
     decode_refresh_token,
     get_current_user,
     hash_password,
+    is_token_revoked,
     require_role,
+    revoke_token,
     verify_password,
     verify_wallet_sig,
 )
+from shared.runtime_config import is_production
 from shared.schemas import (
     LoginRequest,
     RegisterRequest,
@@ -50,13 +56,15 @@ COOKIE_MAX_AGE  = 7 * 24 * 3600   # 7 days in seconds
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
+    # Always Secure + HttpOnly + SameSite=Strict in production
     response.set_cookie(
         key=REFRESH_COOKIE,
         value=token,
         httponly=True,
-        secure=os.getenv("ENVIRONMENT", "dev") == "prod",
-        samesite="lax",
+        secure=is_production() or os.getenv("COOKIE_SECURE", "0") == "1",
+        samesite="strict" if is_production() else "lax",
         max_age=COOKIE_MAX_AGE,
+        path="/auth",
     )
 
 
@@ -79,15 +87,52 @@ async def _log(db: AsyncSession, actor: str, action: str, detail: dict = None, c
 # ── Register ──────────────────────────────────────────────────────────────────
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterRequest, response: Response, db: DB):
+async def register(
+    body: RegisterRequest,
+    response: Response,
+    db: DB,
+    caller_creds: Annotated[Optional[HTTPAuthorizationCredentials], Depends(bearer)] = None,
+):
+    # Production invite token enforcement: registration must be disabled or require invite token
+    if is_production():
+        invite_token = os.getenv("INVITE_TOKEN", "").strip()
+        if not invite_token:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail="Registration is disabled in production. Accounts must be provisioned by an administrator.",
+            )
+        if not body.invite_token or body.invite_token != invite_token:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail="Valid invite token required for registration",
+            )
+
     existing = await db.scalar(select(User).where(User.email == body.email))
     if existing:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Email already registered")
 
-    # Only OWNER can create OWNER/SUPERVISOR accounts without an existing OWNER auth
-    # ponytail: skip complex invite flow — first user auto-becomes OWNER
-    owner_count = await db.scalar(select(User).where(User.role == Role.OWNER.value))
-    role = Role.OWNER.value if owner_count is None else body.role
+    # Enforce role hierarchy: only an existing OWNER can create OWNER or SUPERVISOR accounts
+    is_caller_owner = False
+    if caller_creds and caller_creds.credentials:
+        try:
+            caller_payload = decode_access_token(caller_creds.credentials)
+            is_caller_owner = caller_payload.role == Role.OWNER.value
+        except Exception:
+            pass
+
+    owner_count = await db.scalar(select(func.count(User.user_id)).where(User.role == Role.OWNER.value))
+    if (owner_count == 0 or owner_count is None) and not is_production():
+        # First-ever user in an empty development database becomes OWNER
+        role = Role.OWNER.value
+    elif body.role in (Role.OWNER.value, Role.SUPERVISOR.value):
+        if not is_caller_owner:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail="Only an authenticated OWNER can create SUPERVISOR or OWNER accounts",
+            )
+        role = body.role
+    else:
+        role = body.role if body.role in (Role.INVESTIGATOR.value, Role.VIEWER.value) else Role.INVESTIGATOR.value
 
     user = User(email=body.email, hashed_password=hash_password(body.password), role=role)
     db.add(user)
@@ -127,7 +172,12 @@ async def wallet_login(body: WalletLoginRequest, response: Response, db: DB):
 
     user = await db.scalar(select(User).where(User.wallet_address == body.wallet_address.lower()))
     if not user:
-        # Auto-create wallet-only account as INVESTIGATOR
+        if is_production() or os.getenv("ALLOW_WALLET_AUTOREGISTER", "0") != "1":
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                detail="Wallet address is not registered. Please contact an administrator.",
+            )
+        # Auto-create wallet-only account as INVESTIGATOR when permitted
         user = User(
             email=f"{body.wallet_address.lower()}@wallet.local",
             wallet_address=body.wallet_address.lower(),
@@ -146,13 +196,22 @@ async def wallet_login(body: WalletLoginRequest, response: Response, db: DB):
     return TokenResponse(access_token=access)
 
 
-# ── Refresh ───────────────────────────────────────────────────────────────────
+# ── Refresh with Rotation and Revocation ──────────────────────────────────────
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(response: Response, db: DB, refresh: str | None = Cookie(default=None, alias=REFRESH_COOKIE)):
     if not refresh:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="No refresh token")
-    user_id = decode_refresh_token(refresh)
+    token_data = decode_refresh_token(refresh)
+    user_id, jti = token_data.sub, token_data.jti
+
+    # Check if token JTI was revoked
+    if is_token_revoked(jti):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Refresh token has been revoked")
+
+    # Invalidate old token immediately (refresh token rotation)
+    revoke_token(jti)
+
     user = await db.get(User, UUID(user_id))
     if not user or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="User not found or deactivated")
@@ -166,8 +225,14 @@ async def refresh_token(response: Response, db: DB, refresh: str | None = Cookie
 # ── Logout ────────────────────────────────────────────────────────────────────
 
 @router.post("/logout")
-async def logout(response: Response):
-    response.delete_cookie(REFRESH_COOKIE)
+async def logout(response: Response, refresh: str | None = Cookie(default=None, alias=REFRESH_COOKIE)):
+    if refresh:
+        try:
+            token_data = decode_refresh_token(refresh)
+            revoke_token(token_data.jti)
+        except Exception:
+            pass
+    response.delete_cookie(REFRESH_COOKIE, path="/auth")
     return {"detail": "Logged out"}
 
 
@@ -177,8 +242,13 @@ users_router = APIRouter(prefix="/users", tags=["users"])
 
 
 @users_router.get("", response_model=List[UserResponse])
-async def list_users(db: DB, _: Annotated[TokenPayload, Depends(require_role(Role.OWNER))]):
-    result = await db.execute(select(User))
+async def list_users(
+    db: DB,
+    _: Annotated[TokenPayload, Depends(require_role(Role.OWNER))],
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    result = await db.execute(select(User).order_by(User.created_at.desc()).limit(limit).offset(offset))
     return [_user_response(u) for u in result.scalars().all()]
 
 

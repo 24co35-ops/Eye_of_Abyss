@@ -53,8 +53,8 @@ def anchor_evidence_task(evidence_id: str, case_id: str, evidence_data: dict = N
                                 hashes.append(tx_hash)
                             case.anchor_tx_hashes = hashes
                             log = list(case.audit_log or [])
-                            from datetime import datetime
-                            log.append({"ts": datetime.utcnow().isoformat(), "actor": "system", "action": f"ANCHORED tx={tx_hash}"})
+                            from datetime import datetime, timezone
+                            log.append({"ts": datetime.now(timezone.utc).isoformat(), "actor": "system", "action": f"ANCHORED tx={tx_hash}"})
                             case.audit_log = log
                     await db.commit()
 

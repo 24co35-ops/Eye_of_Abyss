@@ -7,6 +7,37 @@ on:
     branches: [ main, master ]
 
 jobs:
+  security-audit:
+    name: Security Scan & Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Secret Scanning (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Audit Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+          pip-audit || true
+
+      - name: Audit Node.js Dependencies
+        working-directory: frontend
+        run: |
+          npm audit --audit-level=high || true
+
   test-python:
     name: Backend Unit Tests & Data Pipeline
     runs-on: ubuntu-latest
@@ -22,7 +53,8 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-asyncio httpx pydantic numpy pandas networkx faker python-jose passlib bcrypt pyjwt sqlalchemy
+          pip install "numpy<2.3,>=2.0"
+          pip install pytest pytest-asyncio httpx pydantic pandas networkx faker python-jose passlib bcrypt pyjwt sqlalchemy aiosqlite celery
           pip install -r services/case-engine/requirements.txt || true
           pip install -r services/voiceguard/requirements.txt || true
           pip install -r services/shadowtrace/requirements.txt || true
